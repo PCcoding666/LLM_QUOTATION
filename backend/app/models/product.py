@@ -9,10 +9,9 @@ from sqlalchemy.sql import func
 
 try:
     from pgvector.sqlalchemy import Vector
-    VECTOR = Vector
+    HAS_PGVECTOR = True
 except ImportError:
-    # 如果 pgvector 未安装，使用 Text 类型代替
-    VECTOR = Text
+    HAS_PGVECTOR = False
 
 from app.core.database import Base
 
@@ -27,7 +26,11 @@ class Product(Base):
     vendor = Column(String(50), nullable=False, default="aliyun", comment="厂商")
     status = Column(String(50), default="active", comment="状态")
     description = Column(Text, comment="产品描述")
-    description_vector = Column(VECTOR(1536), comment="描述向量")
+    # 向量字段：有pgvector时使用Vector类型，否则使用Text
+    if HAS_PGVECTOR:
+        description_vector = Column(Vector(1536), comment="描述向量")
+    else:
+        description_vector = Column(Text, comment="描述向量(文本存储)")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), comment="更新时间")
     

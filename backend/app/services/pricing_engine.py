@@ -16,19 +16,37 @@ class PricingRule:
 
 
 class TokenPricingRule(PricingRule):
-    """Token计费规则"""
+    """Token计费规则 - 支持输入/输出Token分别计费"""
     
     def apply(self, base_price: Decimal, context: Dict[str, Any]) -> Decimal:
         """
-        Token计费: Token单价 × 输入Token数 × 调用次数
+        Token计费:
+        - 如果有分别的输入/输出价格: (input_price × input_tokens + output_price × output_tokens) / 1000
+        - 否则使用统一token_price: token_price × estimated_tokens × call_frequency
         """
-        token_price = context.get("token_price", base_price)
-        estimated_tokens = context.get("estimated_tokens", 0)
-        call_frequency = context.get("call_frequency", 1)
+        # 检查是否有分别的输入/输出token价格
+        input_token_price = context.get("input_token_price")
+        output_token_price = context.get("output_token_price")
+        input_tokens = context.get("input_tokens", 0)
+        output_tokens = context.get("output_tokens", 0)
         
-        total_price = Decimal(str(token_price)) * Decimal(str(estimated_tokens)) * Decimal(str(call_frequency))
-        logger.info(f"Token计费: {token_price} × {estimated_tokens} × {call_frequency} = {total_price}")
-        return total_price
+        if input_token_price is not None and output_token_price is not None:
+            # 分别计费模式: (输入价格×输入tokens + 输出价格×输出tokens) / 1000
+            input_cost = Decimal(str(input_token_price)) * Decimal(str(input_tokens))
+            output_cost = Decimal(str(output_token_price)) * Decimal(str(output_tokens))
+            total_price = (input_cost + output_cost) / Decimal("1000")
+            
+            logger.info(f"Token分别计费: 输入({input_token_price}×{input_tokens}) + 输出({output_token_price}×{output_tokens}) / 1000 = {total_price}")
+            return total_price
+        else:
+            # 统一计费模式: token_price × estimated_tokens × call_frequency
+            token_price = context.get("token_price", base_price)
+            estimated_tokens = context.get("estimated_tokens", 0)
+            call_frequency = context.get("call_frequency", 1)
+            
+            total_price = Decimal(str(token_price)) * Decimal(str(estimated_tokens)) * Decimal(str(call_frequency))
+            logger.info(f"Token统一计费: {token_price} × {estimated_tokens} × {call_frequency} = {total_price}")
+            return total_price
 
 
 class ThinkingModeRule(PricingRule):
@@ -208,16 +226,36 @@ class PricingEngine:
         discount_details.append({
             "rule": "TokenPricing",
             "original": float(base_price),
-            "calculated": float(price)
+            "calculated": float(price),
+            "input_tokens": context.get("input_tokens", 0),
+            "output_tokens": context.get("output_tokens", 0)
         })
         
         # 2. 思考模式系数
+        original_price = price
         thinking_rule = ThinkingModeRule()
         price = thinking_rule.apply(price, context)
+        if price != original_price:
+            discount_details.append({
+                "rule": "ThinkingMode",
+                "original": float(original_price),
+                "calculated": float(price),
+                "thinking_ratio": context.get("thinking_mode_ratio", 0),
+                "multiplier": context.get("thinking_mode_multiplier", 1.5)
+            })
         
         # 3. Batch折扣
+        original_price = price
         batch_rule = BatchDiscountRule()
         price = batch_rule.apply(price, context)
+        if price != original_price:
+            discount_details.append({
+                "rule": "BatchDiscount",
+                "original": float(original_price),
+                "calculated": float(price),
+                "batch_ratio": context.get("batch_call_ratio", 0),
+                "discount": 0.5
+            })
         
         return price
     

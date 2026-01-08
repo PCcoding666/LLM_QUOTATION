@@ -125,16 +125,25 @@ class QuoteCRUD:
     @staticmethod
     async def clone_quote(db: AsyncSession, source_quote_id: str) -> Optional[QuoteSheet]:
         """克隆报价单"""
+        from datetime import datetime
+        import uuid
+        
         source_quote = await QuoteCRUD.get_quote(db, source_quote_id)
         if not source_quote:
             return None
         
+        # 生成新的报价单编号
+        new_quote_no = f"QT{datetime.now().strftime('%Y%m%d%H%M%S')}{str(uuid.uuid4())[:4].upper()}"
+        
         # 创建新报价单
         new_quote = QuoteSheet(
+            quote_no=new_quote_no,
             customer_name=source_quote.customer_name,
             project_name=f"{source_quote.project_name} (副本)",
+            created_by=source_quote.created_by or "system",
             status="draft",
-            currency=source_quote.currency
+            currency=source_quote.currency,
+            global_discount_rate=source_quote.global_discount_rate
         )
         new_quote = await QuoteCRUD.create_quote(db, new_quote)
         
@@ -145,13 +154,27 @@ class QuoteCRUD:
                 quote_id=new_quote.quote_id,
                 product_code=item.product_code,
                 product_name=item.product_name,
+                region=item.region,
+                region_name=item.region_name,
+                modality=item.modality,
+                capability=item.capability,
+                model_type=item.model_type,
+                context_spec=item.context_spec,
+                input_tokens=item.input_tokens,
+                output_tokens=item.output_tokens,
+                inference_mode=item.inference_mode,
                 spec_config=item.spec_config,
                 quantity=item.quantity,
                 duration_months=item.duration_months,
                 usage_estimation=item.usage_estimation,
                 unit_price=item.unit_price,
+                original_price=item.original_price,
+                discount_rate=item.discount_rate,
+                final_price=item.final_price,
+                billing_unit=item.billing_unit,
                 subtotal=item.subtotal,
-                discount_info=item.discount_info
+                discount_info=item.discount_info,
+                sort_order=item.sort_order
             )
             await QuoteCRUD.add_quote_item(db, new_item)
         

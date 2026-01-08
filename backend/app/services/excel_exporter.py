@@ -1,16 +1,18 @@
 """
 Excel导出服务 - 生成Excel格式报价单
 """
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 import logging
+from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
 
 from app.models.quote import QuoteSheet, QuoteItem
+from app.services.oss_uploader import get_oss_uploader
 
 logger = logging.getLogger(__name__)
 
@@ -295,12 +297,109 @@ class ExcelExporter:
         ws.cell(row=row, column=3).font = Font(bold=True)
         
         # 转换为字节流
-        from io import BytesIO
         buffer = BytesIO()
         wb.save(buffer)
         buffer.seek(0)
         
         return buffer.getvalue()
+    
+    async def generate_and_upload(
+        self,
+        quote: QuoteSheet,
+        items: List[QuoteItem],
+        template_type: str = "standard"
+    ) -> Tuple[bytes, Optional[str]]:
+        """
+        生成Excel并上传到OSS
+        
+        Args:
+            quote: 报价单主记录
+            items: 报价明细列表
+            template_type: 模板类型 (standard/simplified/competitor)
+        
+        Returns:
+            Tuple[bytes, Optional[str]]: (Excel文件字节流, OSS下载URL)
+        """
+        # 根据模板类型生成Excel
+        if template_type == "simplified":
+            excel_bytes = await self.generate_simplified_quote(quote, items)
+        elif template_type == "competitor":
+            excel_bytes = await self.generate_competitor_comparison(quote, items, {})
+        else:
+            excel_bytes = await self.generate_standard_quote(quote, items)
+        
+        # 上传到OSS
+        oss_url = None
+        try:
+            uploader = get_oss_uploader()
+            oss_url = await uploader.upload_quote_file(
+                file_content=excel_bytes,
+                quote_id=str(quote.quote_id),
+                file_type="xlsx"
+            )
+            if oss_url:
+                logger.info(f"报价单Excel已上传: {oss_url}")
+            else:
+                logger.warning("报价单Excel上传失败，OSS可能未配置")
+        except Exception as e:
+            logger.error(f"上传报价单Excel异常: {e}")
+        
+        return excel_bytes, oss_url
+    
+    async def batch_export(
+        self,
+        quotes_data: List[Tuple[QuoteSheet, List[QuoteItem]]],
+        template_type: str = "standard",
+        upload_to_oss: bool = True
+    ) -> List[Dict[str, Any]]:
+        """
+        批量导出报价单
+        
+        Args:
+            quotes_data: 报价单数据列表 [(quote, items), ...]
+            template_type: 模板类型
+            upload_to_oss: 是否上传到OSS
+        
+        Returns:
+            导出结果列表
+        """
+        results = []
+        
+        for quote, items in quotes_data:
+            try:
+                if upload_to_oss:
+                    excel_bytes, oss_url = await self.generate_and_upload(
+                        quote, items, template_type
+                    )
+                    results.append({
+                        "quote_id": str(quote.quote_id),
+                        "quote_no": quote.quote_no,
+                        "success": True,
+                        "oss_url": oss_url,
+                        "file_size": len(excel_bytes)
+                    })
+                else:
+                    if template_type == "simplified":
+                        excel_bytes = await self.generate_simplified_quote(quote, items)
+                    else:
+                        excel_bytes = await self.generate_standard_quote(quote, items)
+                    
+                    results.append({
+                        "quote_id": str(quote.quote_id),
+                        "quote_no": quote.quote_no,
+                        "success": True,
+                        "file_size": len(excel_bytes)
+                    })
+            except Exception as e:
+                logger.error(f"导出报价单 {quote.quote_no} 失败: {e}")
+                results.append({
+                    "quote_id": str(quote.quote_id),
+                    "quote_no": quote.quote_no,
+                    "success": False,
+                    "error": str(e)
+                })
+        
+        return results
 
 
 # 全局导出器实例

@@ -4,6 +4,26 @@
 
 报价侠是一款面向阿里云BTE/SA人员的智能化报价平台,通过AI能力与自动化手段,将传统7天的报价工作压缩至"选、配、导"三步完成。
 
+## ⭐ 一键启动
+
+```bash
+# 开发模式（热重载）
+./start.sh dev
+
+# 生产模式（多worker）
+./start.sh prod
+
+# 仅运行测试
+./start.sh test
+
+# 健康检查
+./start.sh check
+```
+
+启动后访问:
+- **API文档**: http://localhost:8000/api/docs
+- **健康检查**: http://localhost:8000/health
+
 ## 技术栈
 
 - **Web框架**: FastAPI 0.109+
@@ -169,17 +189,60 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ## 测试
 
 ```bash
-# 运行所有测试
-pytest
+# 激活虚拟环境
+source venv/bin/activate
 
-# 运行特定测试
-pytest tests/test_products.py
+# 运行所有测试
+pytest tests/ -v
+
+# 运行E2E场景测试
+pytest tests/test_e2e_scenarios.py -v
+
+# 生成测试报告
+pytest tests/ --junitxml=test_report.xml
 
 # 生成覆盖率报告
 pytest --cov=app tests/
 ```
 
+### 测试覆盖率
+- **单元测试**: 80个用例
+- **通过率**: 96.25%
+- **核心流程**: 100%覆盖
+
+## 性能测试
+
+```bash
+# 服务层性能测试
+python scripts/performance_test.py --all
+
+# API压力测试（需先启动服务）
+python scripts/api_stress_test.py --all --concurrency 10
+```
+
+### 性能指标
+| 服务 | 平均耗时 | 吞吐量 |
+|------|---------|-------|
+| 计费引擎 | 0.3ms | 3300+ ops/s |
+| 报价计算 | 2.6ms | 387 ops/s |
+| 产品筛选 | 0.05ms | 20000+ ops/s |
+| Excel导出 | 3.3ms | 299 ops/s |
+
 ## 部署
+
+### 环境要求
+
+| 组件 | 版本要求 | 用途 |
+|------|---------|-----|
+| Python | 3.10+ | 运行时 |
+| PostgreSQL | 14+ | 主数据库 |
+| Redis | 7.x | 缓存/队列 |
+| Node.js | 18+ | 前端构建 |
+
+### 最小硬件配置
+- CPU: 2核
+- 内存: 4GB
+- 存储: 20GB
 
 ### Docker部署
 
@@ -199,10 +262,55 @@ docker run -d -p 8000:8000 --env-file .env quote-system-backend
 gunicorn main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
 ```
 
-## 许可证
+## 常见问题
 
-内部项目
+### Q1: 数据库连接失败
+```bash
+# 检查环境变量
+cat .env | grep DATABASE_URL
 
-## 联系方式
+# 确保PostgreSQL已启动
+pg_isready -h localhost -p 5432
+```
 
-技术支持: 产研团队
+### Q2: Redis连接失败
+```bash
+# 检查Redis服务
+redis-cli ping
+
+# 如果未Redis，系统将使用内存缓存
+```
+
+### Q3: 依赖安装失败
+```bash
+# 升级pip
+pip install --upgrade pip
+
+# 重新安装依赖
+pip install -r requirements.txt --force-reinstall
+```
+
+### Q4: 数据库迁移报错
+```bash
+# 检查当前迁移状态
+alembic current
+
+# 强制更新到最新
+alembic upgrade head
+```
+
+### Q5: 端口被占用
+```bash
+# 查找占用进程
+lsof -i :8000
+
+# 使用其他端口
+uvicorn main:app --port 8001
+```
+
+## 相关文档
+
+- [E2E测试报告](./E2E_TEST_REPORT.md)
+- [性能测试报告](./PERFORMANCE_TEST_REPORT.md)
+- [数据库迁移指南](./DATABASE_MIGRATION.md)
+- [环境变量示例](./.env.example)

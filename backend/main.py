@@ -1,6 +1,7 @@
 """
 FastAPI应用主入口
 """
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +10,7 @@ from loguru import logger
 from app.core.config import settings
 from app.core.database import init_db
 from app.core.redis_client import init_redis
+from app.core.middleware import setup_error_handling
 from app.api.v1 import api_router
 from app.services.crawler_scheduler import start_crawler_scheduler, stop_crawler_scheduler
 
@@ -57,6 +59,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 设置错误处理和日志中间件
+setup_error_handling(app)
+
+# 确保日志目录存在
+os.makedirs("logs", exist_ok=True)
 
 # 注册路由
 app.include_router(api_router, prefix="/api/v1")

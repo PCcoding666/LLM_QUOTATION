@@ -3,6 +3,7 @@
 """
 import pytest
 from uuid import uuid4
+from datetime import datetime, timedelta
 
 from app.models.product import Product, ProductPrice
 
@@ -23,8 +24,7 @@ class TestProductService:
         )
         
         db_session.add(product)
-        await db_session.commit()
-        await db_session.refresh(product)
+        await db_session.flush()
         
         assert product.product_code == "test-product-001"
         assert product.product_name == "测试产品"
@@ -43,19 +43,18 @@ class TestProductService:
         
         # 创建价格
         price = ProductPrice(
-            price_id=str(uuid4()),
             product_code="test-product-002",
             region="cn-hangzhou",
             spec_type="standard",
             billing_mode="pay-as-you-go",
             unit_price="10.50",
             unit="hour",
-            pricing_variables={"token_based": False}
+            pricing_variables={"token_based": False},
+            effective_date=datetime.now() - timedelta(days=1)
         )
         db_session.add(price)
         
-        await db_session.commit()
-        await db_session.refresh(price)
+        await db_session.flush()
         
         assert price.product_code == "test-product-002"
         assert float(price.unit_price) == 10.50
@@ -71,7 +70,7 @@ class TestProductService:
             vendor="aliyun"
         )
         db_session.add(product)
-        await db_session.commit()
+        await db_session.flush()
         
         # 查询产品
         result = await db_session.get(Product, "test-query-001")

@@ -1,7 +1,7 @@
 """
 产品相关的Pydantic模式
 """
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 from pydantic import BaseModel, Field
 
@@ -23,6 +23,14 @@ class ProductResponse(ProductBase):
     
     class Config:
         from_attributes = True
+
+
+class PaginatedProductListResponse(BaseModel):
+    """分页产品列表响应"""
+    total: int = Field(..., description="总记录数")
+    page: int = Field(..., description="当前页码")
+    page_size: int = Field(..., description="每页大小")
+    data: List[ProductResponse] = Field(..., description="数据列表")
 
 
 class ProductPriceResponse(BaseModel):
