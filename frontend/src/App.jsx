@@ -8,6 +8,7 @@ import QuoteStep1 from './pages/QuoteStep1';
 import QuoteStep2 from './pages/QuoteStep2';
 import QuoteStep3 from './pages/QuoteStep3';
 import QuoteHistory from './pages/QuoteHistory';
+import Admin from './pages/Admin';
 import ChatWindow from './components/ChatWindow';
 import { QuoteProvider } from './context/QuoteContext';
 
@@ -66,6 +67,7 @@ function App() {
             <Route path="/quote/step2" element={<QuoteStep2 />} />
             <Route path="/quote/step3" element={<QuoteStep3 />} />
             <Route path="/quote-history" element={<QuoteHistory />} />
+            <Route path="/admin" element={<Admin />} />
           </Routes>
         </main>
       )}
