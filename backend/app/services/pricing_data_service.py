@@ -208,13 +208,11 @@ class PricingDataService:
         """获取指定模型的完整定价信息"""
         try:
             # 查询所有匹配的模型记录（可能有多个变体）
-            # 精确匹配 model_code，或匹配 model_name 为该 code 或带日期/latest 后缀的版本
+            # 精确匹配 model_code 或 model_name
             models_query = select(PricingModel).where(
                 or_(
                     PricingModel.model_code == model_code,
                     PricingModel.model_name == model_code,
-                    PricingModel.model_name.ilike(f"{model_code}-20%"),  # 日期后缀如 -2024-xx-xx
-                    PricingModel.model_name.ilike(f"{model_code}-latest%")  # latest 后缀
                 )
             )
             models_result = await db.execute(models_query)
