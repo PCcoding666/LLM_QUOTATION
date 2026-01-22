@@ -22,6 +22,9 @@ function QuoteStep3() {
   // 模型规格级别的折扣配置: {modelId: {specId: discountPercent}}
   const [specDiscounts, setSpecDiscounts] = useState({});
   
+  // 日估计调用量配置: {modelId: {specId: dailyUsage}}
+  const [dailyUsages, setDailyUsages] = useState({});
+  
   // 常用折扣预设
   const discountPresets = [
     { label: '无折扣', value: 0 },
@@ -50,19 +53,23 @@ function QuoteStep3() {
     '语音': 'voice',
     '视觉理解': 'vision_understand',
     '视觉生成': 'vision_generate',
-    // 新版分类映射
+    // 新版分类映射 - 文本类
     'text_qwen': 'text',
     'text_qwen_opensource': 'text',
     'text_thirdparty': 'text',
-    'image_gen': 'vision_generate',
-    'image_gen_thirdparty': 'vision_generate',
-    'tts': 'voice',
-    'asr': 'voice',
-    'video_gen': 'vision_generate',
     'text_embedding': 'text',
     'multimodal_embedding': 'text',
     'text_nlu': 'text',
-    'industry': 'text'
+    'industry': 'text',
+    // 图像生成类
+    'image_gen': 'vision_generate',
+    'image_gen_thirdparty': 'vision_generate',
+    'video_gen': 'vision_generate',
+    // 语音类
+    'tts': 'voice',
+    'asr': 'voice',
+    'speech': 'voice',
+    'voice_clone': 'voice'
   };
 
   /**
@@ -112,6 +119,32 @@ function QuoteStep3() {
   const getSpecDiscount = (modelId, specId) => {
     return specDiscounts[modelId]?.[specId] ?? discountPercent;
   };
+  
+  /**
+   * 更新单个规格的日估计调用量
+   * @param {number} modelId - 模型ID
+   * @param {number} specId - 规格ID
+   * @param {string} usage - 日估计调用量
+   */
+  const updateDailyUsage = (modelId, specId, usage) => {
+    setDailyUsages(prev => ({
+      ...prev,
+      [modelId]: {
+        ...(prev[modelId] || {}),
+        [specId]: usage
+      }
+    }));
+  };
+  
+  /**
+   * 获取规格的日估计调用量
+   * @param {number} modelId - 模型ID
+   * @param {number} specId - 规格ID
+   * @returns {string} 日估计调用量
+   */
+  const getDailyUsage = (modelId, specId) => {
+    return dailyUsages[modelId]?.[specId] || '';
+  };
 
   /**
    * 从新版prices数组中提取价格
@@ -139,7 +172,23 @@ function QuoteStep3() {
     selectedModels.forEach(model => {
       // 兼容新旧版数据结构
       const modelKey = model.model_code || model.id;
-      const catKey = categoryNameToKey[model.category] || categoryNameToKey[model.sub_category] || 'text';
+      
+      // 根据模型类别确定分类，优先使用sub_category，其次category
+      let catKey = categoryNameToKey[model.sub_category] || categoryNameToKey[model.category];
+      
+      // 如果还是找不到，根据模型名称特征判断
+      if (!catKey) {
+        const modelName = (model.model_code || model.name || '').toLowerCase();
+        if (modelName.includes('stable-diffusion') || modelName.includes('flux') || modelName.includes('wanx')) {
+          catKey = 'vision_generate';
+        } else if (modelName.includes('cosyvoice') || modelName.includes('paraformer') || modelName.includes('sensevoice')) {
+          catKey = 'voice';
+        } else if (modelName.includes('embedding')) {
+          catKey = 'text';
+        } else {
+          catKey = 'text'; // 默认归类为文本
+        }
+      }
       
       if (!result[catKey]) {
         result[catKey] = {
@@ -281,6 +330,7 @@ function QuoteStep3() {
                 <th className="px-3 py-3 text-right text-xs font-medium text-text-primary w-28">折后输出</th>
               </>
             )}
+            <th className="px-3 py-3 text-center text-xs font-medium text-text-primary w-32">日估计用量</th>
           </tr>
         </thead>
         <tbody>
@@ -374,6 +424,19 @@ function QuoteStep3() {
                     </td>
                   </>
                 )}
+                <td className="px-3 py-3 text-sm">
+                  {hasSpec && (
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={getDailyUsage(model.id, spec.id)}
+                      onChange={(e) => updateDailyUsage(model.id, spec.id, e.target.value)}
+                      className="w-24 px-2 py-1 border border-border rounded text-xs text-center focus:border-primary focus:outline-none"
+                      placeholder="日用量"
+                    />
+                  )}
+                </td>
               </tr>
             );
           })}
@@ -406,6 +469,7 @@ function QuoteStep3() {
                 <th className="px-3 py-3 text-right text-xs font-medium text-text-primary w-28">折后单价</th>
               </>
             )}
+            <th className="px-3 py-3 text-center text-xs font-medium text-text-primary w-32">日估计用量</th>
           </tr>
         </thead>
         <tbody>
@@ -475,6 +539,19 @@ function QuoteStep3() {
                     </td>
                   </>
                 )}
+                <td className="px-3 py-3 text-sm">
+                  {hasSpec && (
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={getDailyUsage(model.id, spec.id)}
+                      onChange={(e) => updateDailyUsage(model.id, spec.id, e.target.value)}
+                      className="w-24 px-2 py-1 border border-border rounded text-xs text-center focus:border-primary focus:outline-none"
+                      placeholder="日用量"
+                    />
+                  )}
+                </td>
               </tr>
             );
           })}
@@ -558,7 +635,8 @@ function QuoteStep3() {
         },
         selectedModels,
         modelConfigs,
-        specDiscounts
+        specDiscounts,
+        dailyUsages  // 添加日估计用量数据
       };
       
       // 调用后端 API 生成 Excel

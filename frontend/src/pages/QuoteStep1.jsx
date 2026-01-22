@@ -107,7 +107,9 @@ function QuoteStep1() {
         return [...prev, {
           model_code: model.model_code,
           model_name: model.model_name,
-          display_name: model.model_code  // 使用纯英文标识符
+          display_name: model.model_code,  // 使用纯英文标识符
+          category: model.category,  // 保存分类信息
+          sub_category: model.sub_category  // 保存子分类信息
         }];
       }
     });
@@ -152,7 +154,9 @@ function QuoteStep1() {
     setSelectedModels(prev => [...prev, ...newModels.map(m => ({
       model_code: m.model_code,
       model_name: m.model_name,
-      display_name: m.model_code  // 使用纯英文标识符
+      display_name: m.model_code,  // 使用纯英文标识符
+      category: m.category,  // 保存分类信息
+      sub_category: m.sub_category  // 保存子分类信息
     }))]);
   };
 

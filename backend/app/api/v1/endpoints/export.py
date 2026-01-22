@@ -299,6 +299,7 @@ class QuotePreviewRequest(BaseModel):
     selectedModels: List[dict]  # 已选模型
     modelConfigs: dict  # 模型配置
     specDiscounts: Optional[dict] = {}  # 规格折扣
+    dailyUsages: Optional[dict] = {}  # 日估计用量
 
 
 @router.post("/batch", response_model=BatchExportResult)
@@ -441,8 +442,62 @@ async def export_quote_preview(
         ws['G3'] = '有效期：'
         ws['H3'] = valid_until
         
+        # 类目配置
+        category_config = {
+            'text': {'name': '文本模型', 'icon': '📝'},
+            'voice': {'name': '语音模型', 'icon': '🎙️'},
+            'vision_understand': {'name': '视觉理解模型', 'icon': '👁️'},
+            'vision_generate': {'name': '视觉生成模型', 'icon': '🎨'}
+        }
+        
+        # 类别映射
+        category_name_to_key = {
+            'text_qwen': 'text',
+            'text_qwen_opensource': 'text',
+            'text_thirdparty': 'text',
+            'text_embedding': 'text',
+            'multimodal_embedding': 'text',
+            'text_nlu': 'text',
+            'industry': 'text',
+            'image_gen': 'vision_generate',
+            'image_gen_thirdparty': 'vision_generate',
+            'video_gen': 'vision_generate',
+            'tts': 'voice',
+            'asr': 'voice',
+            'speech': 'voice',
+            'voice_clone': 'voice'
+        }
+        
+        # 按类别分组模型
+        grouped_models = {}
+        for model in request.selectedModels:
+            model_code = model.get('model_code') or model.get('id')
+            model_name = model.get('model_code') or model.get('model_name') or model.get('name', '')
+            
+            # 确定类别
+            cat_key = category_name_to_key.get(model.get('sub_category')) or category_name_to_key.get(model.get('category'))
+            if not cat_key:
+                model_name_lower = model_name.lower()
+                if 'stable-diffusion' in model_name_lower or 'flux' in model_name_lower or 'wanx' in model_name_lower:
+                    cat_key = 'vision_generate'
+                elif 'cosyvoice' in model_name_lower or 'paraformer' in model_name_lower or 'sensevoice' in model_name_lower:
+                    cat_key = 'voice'
+                elif 'embedding' in model_name_lower:
+                    cat_key = 'text'
+                else:
+                    cat_key = 'text'
+            
+            if cat_key not in grouped_models:
+                grouped_models[cat_key] = []
+            
+            grouped_models[cat_key].append({
+                'model': model,
+                'model_code': model_code,
+                'model_name': model_name
+            })
+        
         # 表头
-        headers = ['序号', '模型名称', '模式', 'Token范围', '输入单价', '输出单价', '折扣', '备注']
+        headers = ['序号', '模型名称', '模式', 'Token范围', '输入单价', '输出单价', '折扣', '日估计用量', '备注']
         start_row = 5
         
         for col, header in enumerate(headers, 1):
@@ -454,86 +509,118 @@ async def export_quote_preview(
         
         ws.row_dimensions[start_row].height = 25
         
-        # 写入数据
+        # 写入数据 - 按类别分组
         current_row = start_row + 1
         row_num = 1
         
-        for model in request.selectedModels:
-            # 兼容新版(model_code)和旧版(id)的数据结构
-            model_code = model.get('model_code') or model.get('id')
-            model_name = model.get('model_code') or model.get('model_name') or model.get('name', '')
+        # 按固定顺序遍历各类别
+        for cat_key in ['text', 'voice', 'vision_understand', 'vision_generate']:
+            if cat_key not in grouped_models:
+                continue
             
-            # 尝试多种key获取配置
-            model_config = (
-                request.modelConfigs.get(str(model_code), {}) or
-                request.modelConfigs.get(model_code, {}) or
-                request.modelConfigs.get(str(model.get('id')), {})
-            )
+            # 添加类别标题行
+            category_name = category_config[cat_key]['name']
+            category_icon = category_config[cat_key]['icon']
+            ws.merge_cells(f'A{current_row}:I{current_row}')
+            category_cell = ws.cell(row=current_row, column=1, value=f'{category_icon} {category_name} (共{len(grouped_models[cat_key])}项)')
+            category_cell.font = Font(name='微软雅黑', size=12, bold=True, color='4472C4')
+            category_cell.fill = PatternFill(start_color='E7E6E6', end_color='E7E6E6', fill_type='solid')
+            category_cell.alignment = Alignment(horizontal='left', vertical='center')
+            ws.row_dimensions[current_row].height = 25
+            current_row += 1
             
-            # 兼容variants(新版)和specs(旧版)
-            specs = model_config.get('variants', []) or model_config.get('specs', [])
-            
-            logger.info(f"导出模型: {model_name}, model_code={model_code}, specs数量={len(specs)}")
-            
-            if not specs:
-                # 没有规格配置时显示模型名称
-                ws.cell(row=current_row, column=1, value=row_num).border = thin_border
-                ws.cell(row=current_row, column=2, value=model_name).border = thin_border
-                for col in range(3, 9):
-                    ws.cell(row=current_row, column=col, value='-').border = thin_border
-                current_row += 1
-                row_num += 1
-            else:
-                # 有规格配置
-                for spec in specs:
-                    spec_id = spec.get('id')
-                    # 获取该规格的折扣
-                    spec_discount = request.specDiscounts.get(str(model_code), {}).get(str(spec_id), discount_percent)
-                    if spec_discount == 0:
-                        spec_discount = request.specDiscounts.get(str(model.get('id')), {}).get(str(spec_id), discount_percent)
-                    discount_label = f"{(10 - spec_discount / 10):.1f}折" if spec_discount > 0 else "无折扣"
-                    
+            # 写入该类别的模型
+            for model_data in grouped_models[cat_key]:
+                model = model_data['model']
+                model_code = model_data['model_code']
+                model_name = model_data['model_name']
+                
+                # 尝试多种key获取配置
+                model_config = (
+                    request.modelConfigs.get(str(model_code), {}) or
+                    request.modelConfigs.get(model_code, {}) or
+                    request.modelConfigs.get(str(model.get('id')), {})
+                )
+                
+                # 兼容variants(新版)和specs(旧版)
+                specs = model_config.get('variants', []) or model_config.get('specs', [])
+                
+                logger.info(f"导出模型: {model_name}, model_code={model_code}, specs数量={len(specs)}")
+                
+                if not specs:
+                    # 没有规格配置时显示模型名称
                     ws.cell(row=current_row, column=1, value=row_num).border = thin_border
-                    
-                    # 获取模型名称：优先使用spec中的model_name
-                    display_name = spec.get('model_name') or model_name
-                    ws.cell(row=current_row, column=2, value=display_name).border = thin_border
-                    
-                    # 模式
-                    mode = spec.get('mode', '-') or '-'
-                    ws.cell(row=current_row, column=3, value=mode).border = thin_border
-                    
-                    # Token范围：兼容token_tier(新版)和token_range(旧版)
-                    token_range = spec.get('token_tier') or spec.get('token_range') or '-'
-                    ws.cell(row=current_row, column=4, value=token_range).border = thin_border
-                    
-                    # 价格提取：兼容新版(prices数组)和旧版(直接字段)
-                    input_price = None
-                    output_price = None
-                    
-                    # 新版：从cprices数组提取
-                    if 'prices' in spec and isinstance(spec['prices'], list):
-                        for price_item in spec['prices']:
-                            dim_code = price_item.get('dimension_code', '')
-                            if dim_code in ['input', 'input_token']:
-                                input_price = price_item.get('unit_price')
-                            elif dim_code in ['output', 'output_token', 'output_token_thinking']:
-                                output_price = price_item.get('unit_price')
-                    else:
-                        # 旧版：直接从字段获取
-                        input_price = spec.get('input_price')
-                        output_price = spec.get('output_price')
-                    
-                    ws.cell(row=current_row, column=5, value=f"¥{input_price}/千Token" if input_price else '-').border = thin_border
-                    ws.cell(row=current_row, column=6, value=f"¥{output_price}/千Token" if output_price else '-').border = thin_border
-                    ws.cell(row=current_row, column=7, value=discount_label).border = thin_border
-                    ws.cell(row=current_row, column=8, value=spec.get('remark', '')).border = thin_border
-                    
+                    ws.cell(row=current_row, column=2, value=model_name).border = thin_border
+                    for col in range(3, 10):  # 更新为10列（1-9列）
+                        ws.cell(row=current_row, column=col, value='-').border = thin_border
                     current_row += 1
                     row_num += 1
+                else:
+                    # 有规格配置
+                    for spec in specs:
+                        spec_id = spec.get('id')
+                        # 获取该规格的折扣
+                        spec_discount = request.specDiscounts.get(str(model_code), {}).get(str(spec_id), discount_percent)
+                        if spec_discount == 0:
+                            spec_discount = request.specDiscounts.get(str(model.get('id')), {}).get(str(spec_id), discount_percent)
+                        discount_label = f"{(10 - spec_discount / 10):.1f}折" if spec_discount > 0 else "无折扣"
+                        
+                        ws.cell(row=current_row, column=1, value=row_num).border = thin_border
+                                    
+                        # 获取模型名称：优先使用spec中的model_name
+                        display_name = spec.get('model_name') or model_name
+                        ws.cell(row=current_row, column=2, value=display_name).border = thin_border
+                                    
+                        # 模式
+                        mode = spec.get('mode', '-') or '-'
+                        ws.cell(row=current_row, column=3, value=mode).border = thin_border
+                                    
+                        # Token范围：兼容token_tier(新版)和token_range(旧版)
+                        token_range = spec.get('token_tier') or spec.get('token_range') or '-'
+                        ws.cell(row=current_row, column=4, value=token_range).border = thin_border
+                                    
+                        # 价格提取：兼容新版(prices数组)和旧版(直接字段)
+                        input_price = None
+                        output_price = None
+                                    
+                        # 新版：从cprices数组提取
+                        if 'prices' in spec and isinstance(spec['prices'], list):
+                            for price_item in spec['prices']:
+                                dim_code = price_item.get('dimension_code', '')
+                                if dim_code in ['input', 'input_token']:
+                                    input_price = price_item.get('unit_price')
+                                elif dim_code in ['output', 'output_token', 'output_token_thinking']:
+                                    output_price = price_item.get('unit_price')
+                        else:
+                            # 旧版：直接从字段获取
+                            input_price = spec.get('input_price')
+                            output_price = spec.get('output_price')
+                                    
+                        ws.cell(row=current_row, column=5, value=f"¥{input_price}/千Token" if input_price else '-').border = thin_border
+                        ws.cell(row=current_row, column=6, value=f"¥{output_price}/千Token" if output_price else '-').border = thin_border
+                        ws.cell(row=current_row, column=7, value=discount_label).border = thin_border
+                                    
+                        # 获取日估计用量：根据model_code和spec_id查找
+                        daily_usage = '-'
+                        if str(model_code) in request.dailyUsages:
+                            spec_daily_usage = request.dailyUsages[str(model_code)]
+                            if isinstance(spec_daily_usage, dict) and str(spec_id) in spec_daily_usage:
+                                daily_usage = spec_daily_usage[str(spec_id)]
+                            elif isinstance(spec_daily_usage, str):
+                                # 如果是字符串，表示整个模型的用量
+                                daily_usage = spec_daily_usage
+                        ws.cell(row=current_row, column=8, value=daily_usage).border = thin_border
+                                    
+                        ws.cell(row=current_row, column=9, value=spec.get('remark', '')).border = thin_border
+                        
+                        current_row += 1
+                        row_num += 1
+            
+            # 类别之间留一行空白
+            current_row += 1
         
         # 设置列宽
-        column_widths = [8, 30, 15, 20, 18, 18, 12, 20]
+        column_widths = [8, 30, 15, 20, 18, 18, 12, 15, 20]
         for col, width in enumerate(column_widths, 1):
             ws.column_dimensions[get_column_letter(col)].width = width
         
