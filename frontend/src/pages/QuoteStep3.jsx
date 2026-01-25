@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { exportQuotePreview, downloadExport } from '../api';
+import CompetitorModal from '../components/CompetitorModal';
 
 function QuoteStep3() {
   const navigate = useNavigate();
@@ -44,6 +45,9 @@ function QuoteStep3() {
   
   // 导出加载状态
   const [exporting, setExporting] = useState(false);
+  
+  // 竞品分析弹窗状态
+  const [competitorModalOpen, setCompetitorModalOpen] = useState(false);
 
   /**
    * 类目名称到 key 的映射（兼容旧版）
@@ -1059,10 +1063,7 @@ function QuoteStep3() {
             )}
           </button>
           <button
-            onClick={() => {
-              // TODO: 后续链接竞争分析功能
-              alert('竞争分析功能即将上线');
-            }}
+            onClick={() => setCompetitorModalOpen(true)}
             className="px-8 py-3 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-all flex items-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1072,6 +1073,13 @@ function QuoteStep3() {
           </button>
         </div>
       </div>
+      
+      {/* 竞品分析弹窗 */}
+      <CompetitorModal 
+        isOpen={competitorModalOpen}
+        onClose={() => setCompetitorModalOpen(false)}
+        models={selectedModels}
+      />
     </div>
   );
 }

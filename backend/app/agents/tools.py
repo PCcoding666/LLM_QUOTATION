@@ -8,6 +8,7 @@ from decimal import Decimal
 from loguru import logger
 
 from app.services.pricing_engine import pricing_engine
+from app.services.competitor_service import competitor_service
 from app.core.database import async_session_maker
 from sqlalchemy import select, text
 
@@ -703,7 +704,7 @@ class FunctionTools:
         budget: float = None,
         priority: str = "balanced"
     ) -> Dict[str, Any]:
-        """推荐模型"""
+        """推荐模型（含竞品对比优势）"""
         # 场景到模型的推荐映射
         recommendations = {
             "客服": ["qwen-plus", "qwen-turbo"],
@@ -734,12 +735,22 @@ class FunctionTools:
         for model_id in matched_models:
             price_info = await FunctionTools.get_model_price(model_id)
             if price_info.get("found"):
-                result_models.append({
+                # 获取竞品优势信息
+                competitor_insight = competitor_service.get_insight_for_ai(model_id)
+                
+                model_result = {
                     "model_id": price_info["model_id"],
                     "model_name": price_info["model_name"],
                     "pricing": price_info["pricing"],
                     "recommendation_reason": f"适合{use_case}场景" if priority == "performance" else "性价比高"
-                })
+                }
+                
+                # 如果有竞品数据，添加到推荐理由中
+                if competitor_insight:
+                    model_result["competitor_advantage"] = competitor_insight
+                    model_result["recommendation_reason"] += f"。{competitor_insight}"
+                
+                result_models.append(model_result)
         
         return {
             "use_case": use_case,
