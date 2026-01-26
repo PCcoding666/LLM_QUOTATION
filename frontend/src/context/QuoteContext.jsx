@@ -20,6 +20,21 @@ export function QuoteProvider({ children }) {
     contact: '',
     email: ''
   });
+  
+  // 价格单位偏好：'thousand'（千Token）或 'million'（百万Token）
+  const [priceUnit, setPriceUnit] = useState(() => {
+    const saved = localStorage.getItem('priceUnitPreference');
+    return saved || 'thousand';
+  });
+  
+  // 切换价格单位
+  const togglePriceUnit = useCallback(() => {
+    setPriceUnit(prev => {
+      const newUnit = prev === 'thousand' ? 'million' : 'thousand';
+      localStorage.setItem('priceUnitPreference', newUnit);
+      return newUnit;
+    });
+  }, []);
 
   // 初始化时从 sessionStorage 恢复数据
   useEffect(() => {
@@ -157,7 +172,9 @@ export function QuoteProvider({ children }) {
     updateQuoteItem,
     clearQuote,
     getQuoteSummary,
-    syncToTraditionalFlow
+    syncToTraditionalFlow,
+    priceUnit,
+    togglePriceUnit
   };
 
   return (
