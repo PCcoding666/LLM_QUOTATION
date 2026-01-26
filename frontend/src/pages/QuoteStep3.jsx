@@ -6,9 +6,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { exportQuotePreview, downloadExport } from '../api';
+import { useQuote } from '../context/QuoteContext';
+import { getDisplayPrice, getUnitLabel } from '../utils/priceConverter';
 
 function QuoteStep3() {
   const navigate = useNavigate();
+  
+  // 获取价格单位偏好
+  const { priceUnit, togglePriceUnit } = useQuote();
   
   // 客户信息
   const [customerName, setCustomerName] = useState('');
@@ -372,22 +377,22 @@ function QuoteStep3() {
                 </td>
                 <td className="px-3 py-3 text-sm text-right">
                   {hasSpec && spec.input_price !== null && spec.input_price !== undefined ? (
-                    <span className="text-primary font-medium">¥{spec.input_price}</span>
+                    <span className="text-primary font-medium">¥{getDisplayPrice(spec.input_price, priceUnit)}</span>
                   ) : (
                     <span className="text-text-secondary">-</span>
                   )}
                   {hasSpec && spec.input_price !== null && (
-                    <span className="text-xs text-text-secondary ml-1">/千Token</span>
+                    <span className="text-xs text-text-secondary ml-1">/{getUnitLabel(priceUnit)}</span>
                   )}
                 </td>
                 <td className="px-3 py-3 text-sm text-right">
                   {hasSpec && spec.output_price !== null && spec.output_price !== undefined ? (
-                    <span className="text-green-600 font-medium">¥{spec.output_price}</span>
+                    <span className="text-green-600 font-medium">¥{getDisplayPrice(spec.output_price, priceUnit)}</span>
                   ) : (
                     <span className="text-text-secondary">-</span>
                   )}
                   {hasSpec && spec.output_price !== null && (
-                    <span className="text-xs text-text-secondary ml-1">/千Token</span>
+                    <span className="text-xs text-text-secondary ml-1">/{getUnitLabel(priceUnit)}</span>
                   )}
                 </td>
                 {hasAnyDiscount && (
@@ -414,12 +419,12 @@ function QuoteStep3() {
                     </td>
                     <td className="px-3 py-3 text-sm text-right">
                       {hasSpec && spec.input_price !== null && spec.input_price !== undefined ? (
-                        <span className="text-primary font-medium">¥{calculateDiscountPrice(spec.input_price, getSpecDiscount(model.id, spec.id))}</span>
+                        <span className="text-primary font-medium">¥{getDisplayPrice(calculateDiscountPrice(spec.input_price, getSpecDiscount(model.id, spec.id)), priceUnit)}</span>
                       ) : '-'}
                     </td>
                     <td className="px-3 py-3 text-sm text-right">
                       {hasSpec && spec.output_price !== null && spec.output_price !== undefined ? (
-                        <span className="text-green-600 font-medium">¥{calculateDiscountPrice(spec.output_price, getSpecDiscount(model.id, spec.id))}</span>
+                        <span className="text-green-600 font-medium">¥{getDisplayPrice(calculateDiscountPrice(spec.output_price, getSpecDiscount(model.id, spec.id)), priceUnit)}</span>
                       ) : '-'}
                     </td>
                   </>
@@ -636,7 +641,8 @@ function QuoteStep3() {
         selectedModels,
         modelConfigs,
         specDiscounts,
-        dailyUsages  // 添加日估计用量数据
+        dailyUsages,  // 添加日估计用量数据
+        priceUnit     // 价格单位偏好
       };
       
       // 调用后端 API 生成 Excel
@@ -902,6 +908,38 @@ function QuoteStep3() {
                   </span>
                 </div>
               )}
+            </div>
+          </div>
+          
+          {/* 单位切换开关 */}
+          <div className="flex items-center justify-end mb-3">
+            <div className="flex items-center gap-3 px-3 py-2 bg-slate-50 rounded-lg border border-slate-200">
+              <span className="text-sm text-text-secondary whitespace-nowrap">价格单位:</span>
+              <div className="inline-flex rounded-lg bg-gray-200 p-0.5">
+                <button
+                  onClick={() => priceUnit !== 'thousand' && togglePriceUnit()}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap ${
+                    priceUnit === 'thousand'
+                      ? 'bg-white text-primary shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  千Token
+                </button>
+                <button
+                  onClick={() => priceUnit !== 'million' && togglePriceUnit()}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap ${
+                    priceUnit === 'million'
+                      ? 'bg-white text-primary shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  百万Token
+                </button>
+              </div>
+              <span className="text-xs text-blue-600 whitespace-nowrap">
+                {priceUnit === 'million' ? '(行业通用)' : '(原始单位)'}
+              </span>
             </div>
           </div>
           

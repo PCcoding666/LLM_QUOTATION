@@ -300,6 +300,7 @@ class QuotePreviewRequest(BaseModel):
     modelConfigs: dict  # 模型配置
     specDiscounts: Optional[dict] = {}  # 规格折扣
     dailyUsages: Optional[dict] = {}  # 日估计用量
+    priceUnit: Optional[str] = 'thousand'  # 价格单位: 'thousand'(千Token) 或 'million'(百万Token)
 
 
 @router.post("/batch", response_model=BatchExportResult)
@@ -426,6 +427,11 @@ async def export_quote_preview(
         quote_date = customer_info.get('quoteDate', '')
         valid_until = customer_info.get('validUntil', '')
         discount_percent = customer_info.get('discountPercent', 0)
+        
+        # 获取价格单位偏好
+        price_unit = request.priceUnit or 'thousand'
+        unit_label = '百万Token' if price_unit == 'million' else '千Token'
+        price_multiplier = 1000 if price_unit == 'million' else 1
         
         # 写入标题
         ws.merge_cells('A1:H1')
@@ -595,9 +601,13 @@ async def export_quote_preview(
                             # 旧版：直接从字段获取
                             input_price = spec.get('input_price')
                             output_price = spec.get('output_price')
+                        
+                        # 根据单位偏好转换价格
+                        display_input = round(input_price * price_multiplier, 4) if input_price else None
+                        display_output = round(output_price * price_multiplier, 4) if output_price else None
                                     
-                        ws.cell(row=current_row, column=5, value=f"¥{input_price}/千Token" if input_price else '-').border = thin_border
-                        ws.cell(row=current_row, column=6, value=f"¥{output_price}/千Token" if output_price else '-').border = thin_border
+                        ws.cell(row=current_row, column=5, value=f"¥{display_input}/{unit_label}" if display_input else '-').border = thin_border
+                        ws.cell(row=current_row, column=6, value=f"¥{display_output}/{unit_label}" if display_output else '-').border = thin_border
                         ws.cell(row=current_row, column=7, value=discount_label).border = thin_border
                                     
                         # 获取日估计用量：根据model_code和spec_id查找
