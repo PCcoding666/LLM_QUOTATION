@@ -128,3 +128,36 @@ export const searchPricingModels = (keyword, limit = 20) =>
  */
 export const getPricingCategories = () =>
   client.get('/products/pricing/categories');
+
+// =====================================================
+// 竞品分析 API
+// =====================================================
+
+/**
+ * 获取单个模型的竞品对标数据
+ * @param {string} modelName - 模型代码
+ * @param {string} [category] - 可选类别过滤
+ * @returns {Promise} 竞品对标数据
+ */
+export const getCompetitorMatch = (modelName, category = null) =>
+  client.get('/competitors/match', { 
+    params: { 
+      model_name: modelName,
+      category: category || undefined
+    } 
+  });
+
+/**
+ * 批量获取多个模型的竞品对标数据
+ * @param {string[]} modelCodes - 模型代码列表
+ * @returns {Promise} 批量竞品对标数据
+ */
+export const batchGetCompetitors = (modelCodes) =>
+  client.post('/competitors/batch-match', { model_codes: modelCodes });
+
+/**
+ * 获取竞品数据服务状态
+ * @returns {Promise} 服务状态信息
+ */
+export const getCompetitorStatus = () =>
+  client.get('/competitors/status');

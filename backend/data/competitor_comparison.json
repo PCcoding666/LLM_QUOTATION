@@ -1,0 +1,170 @@
+[
+  {
+    "category": "text",
+    "family": "Qwen系列",
+    "qwen": {
+      "model": "Qwen3-Max(<32k)",
+      "position": 1,
+      "role": "旗舰推理模型",
+      "cost_1m_tokens_input_cny": 4.0,
+      "cost_1m_tokens_output_cny": 16.0
+    },
+    "doubao": {
+      "model": "Doubao 1.5 Pro (<32k)",
+      "position": 1,
+      "cost_1m_tokens_input_cny": 4.0,
+      "cost_1m_tokens_output_cny": 9.0
+    },
+    "baseline": {
+      "model": "Gemini 2.5 Pro",
+      "cost_ratio_vs_gemini": "1:8.7"
+    },
+    "insight": "Qwen3-Max 作为旗舰模型，对标 Doubao 1.5 Pro。在输入价格相同的情况下，Qwen 输出价格略高，但提供更强的推理能力和更全面的百炼平台生态支持，适合对推理质量要求高的企业级应用场景。"
+  },
+  {
+    "category": "text",
+    "family": "Qwen系列",
+    "qwen": {
+      "model": "Qwen-Plus(<128k)",
+      "position": 2,
+      "role": "主推性价比模型",
+      "cost_1m_tokens_input_cny": 0.8,
+      "cost_1m_tokens_output_cny": 2.0
+    },
+    "doubao": {
+      "model": "Seed-1.6/1.5pro(<32k)",
+      "position": 2,
+      "cost_1m_tokens_input_cny": 0.8,
+      "cost_1m_tokens_output_cny": 2.0
+    },
+    "baseline": {
+      "model": "Gemini 2.5 Pro",
+      "cost_ratio_vs_gemini": "1:57.9"
+    },
+    "insight": "Qwen-Plus 对标 Doubao Seed 主力模型，在输入/输出单价完全一致的情况下，Qwen-Plus 支持128k超长上下文（Doubao仅32k），可以处理更长的文档和对话历史，通过更长上下文、更全生态（百炼平台能力）来提升整体价值。"
+  },
+  {
+    "category": "text",
+    "family": "Qwen系列",
+    "qwen": {
+      "model": "Qwen-Flash(<128k)",
+      "position": 3,
+      "role": "高吞吐低成本模型",
+      "cost_1m_tokens_input_cny": 0.0,
+      "cost_1m_tokens_output_cny": 0.0
+    },
+    "doubao": {
+      "model": "Doubao-lite",
+      "position": 3,
+      "cost_1m_tokens_input_cny": 0.3,
+      "cost_1m_tokens_output_cny": 0.6
+    },
+    "baseline": {
+      "model": "Gemini 2.5 Flash",
+      "cost_ratio_vs_gemini": "免费"
+    },
+    "insight": "Qwen-Flash 目前限时免费，相比 Doubao-lite 成本更低。适合高吞吐、低成本场景如批量数据处理、简单问答等。免费期间是客户试用和迁移的最佳时机。"
+  },
+  {
+    "category": "text",
+    "family": "Qwen系列",
+    "qwen": {
+      "model": "Qwen-Turbo(<1M)",
+      "position": 4,
+      "role": "超长上下文模型",
+      "cost_1m_tokens_input_cny": 0.3,
+      "cost_1m_tokens_output_cny": 0.6
+    },
+    "doubao": {
+      "model": "Doubao-pro-128k",
+      "position": 4,
+      "cost_1m_tokens_input_cny": 5.0,
+      "cost_1m_tokens_output_cny": 9.0
+    },
+    "baseline": {
+      "model": "Claude 3.5 Sonnet",
+      "cost_ratio_vs_gemini": "1:50"
+    },
+    "insight": "Qwen-Turbo 支持高达1M超长上下文，价格仅为 Doubao-pro-128k 的1/15。在长文档处理、多轮对话、RAG等场景下具有显著的成本优势和性能优势。"
+  },
+  {
+    "category": "image",
+    "family": "通义图片创作",
+    "qwen": {
+      "model": "Qwen-image (主推)",
+      "position": 1,
+      "role": "主推图片生成模型",
+      "cost_per_image_cny": 0.04
+    },
+    "doubao": {
+      "model": "豆包-图像生成",
+      "position": 1,
+      "cost_per_image_cny": 0.06
+    },
+    "baseline": {
+      "model": "DALL-E 3",
+      "cost_ratio_vs_dalle": "1:12.5"
+    },
+    "insight": "Qwen-image 单张图片生成价格为0.04元，比豆包图像生成便宜33%。支持多种分辨率和风格，适合批量图片生成场景，如电商商品图、营销素材等。"
+  },
+  {
+    "category": "image",
+    "family": "通义图片创作",
+    "qwen": {
+      "model": "万相生图",
+      "position": 2,
+      "role": "高质量画面创作",
+      "cost_per_image_cny": 0.14
+    },
+    "doubao": {
+      "model": "豆包-高清图像",
+      "position": 2,
+      "cost_per_image_cny": 0.16
+    },
+    "baseline": {
+      "model": "Midjourney",
+      "cost_ratio_vs_mj": "1:8"
+    },
+    "insight": "万相生图专注高质量画面创作，价格略低于豆包高清图像。支持艺术风格、写实风格等多种创作模式，适合品牌设计、广告创意等对画质要求较高的场景。"
+  },
+  {
+    "category": "image",
+    "family": "通义图片创作",
+    "qwen": {
+      "model": "Z-Image",
+      "position": 3,
+      "role": "高端图片创作",
+      "cost_per_image_cny": 0.2
+    },
+    "doubao": {
+      "model": "豆包-专业版",
+      "position": 3,
+      "cost_per_image_cny": 0.25
+    },
+    "baseline": {
+      "model": "DALL-E 3 HD",
+      "cost_ratio_vs_dalle": "1:10"
+    },
+    "insight": "Z-Image 定位高端图片创作，价格比豆包专业版低20%。提供最高质量的图像生成能力，支持4K分辨率输出，适合企业级品牌视觉、高端营销物料制作。"
+  },
+  {
+    "category": "video",
+    "family": "通义万相视频创作",
+    "qwen": {
+      "model": "通义万相视频创作-旗舰",
+      "position": 1,
+      "role": "视频创作旗舰模型",
+      "cost_per_second_cny": 0.4
+    },
+    "doubao": {
+      "model": "豆包-视频生成Pro",
+      "position": 1,
+      "cost_per_second_cny": 0.5
+    },
+    "baseline": {
+      "model": "Runway Gen-3",
+      "cost_ratio_vs_runway": "1:5"
+    },
+    "insight": "通义万相视频创作旗舰版每秒生成成本0.4元，比豆包视频Pro低20%。支持文生视频、图生视频等多种模式，生成质量稳定，适合短视频创作、广告制作等场景。"
+  }
+]
