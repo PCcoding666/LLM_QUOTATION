@@ -63,6 +63,21 @@ export const sendChatMessage = (message, sessionId = null) =>
   });
 
 /**
+ * 上传文件并提取信息（支持Excel、PDF、图片等）
+ * @param {File} file - 要上传的文件
+ * @returns {Promise} 提取结果
+ */
+export const extractFromFile = (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return client.post('/ai/extract', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+};
+
+/**
  * 清除会话历史
  * @param {string} sessionId - 会话ID
  */
