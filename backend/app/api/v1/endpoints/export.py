@@ -458,6 +458,13 @@ async def export_quote_preview(
         
         # 类别映射
         category_name_to_key = {
+            # 中文category映射（来自API）
+            'AI-大模型-文本生成': 'text',
+            'AI-大模型-视觉理解': 'vision_understand',
+            'AI-大模型-视觉生成': 'vision_generate',
+            'AI-大模型-语音': 'voice',
+            'AI-大模型-向量': 'text',
+            # 英文分类映射
             'text_qwen': 'text',
             'text_qwen_opensource': 'text',
             'text_thirdparty': 'text',
@@ -474,24 +481,54 @@ async def export_quote_preview(
             'voice_clone': 'voice'
         }
         
+        def get_category_key(model, model_name):
+            """根据模型数据获取分类 key，优先级：modality > category > 名称特征"""
+            model_name_lower = model_name.lower()
+            
+            # 1. 优先使用 modality 字段
+            modality = model.get('modality')
+            if modality:
+                if modality == 'audio':
+                    return 'voice'
+                elif modality == 'image':
+                    if '-vl' in model_name_lower or 'understand' in model_name_lower:
+                        return 'vision_understand'
+                    return 'vision_generate'
+                elif modality == 'video':
+                    return 'vision_generate'
+                elif modality in ['text', 'text_embedding']:
+                    return 'text'
+            
+            # 2. 其次使用 category 字段
+            category = model.get('category', '')
+            if '语音' in category:
+                return 'voice'
+            if '视觉理解' in category:
+                return 'vision_understand'
+            if '视觉生成' in category:
+                return 'vision_generate'
+            if '向量' in category or '文本' in category:
+                return 'text'
+            
+            # 3. 最后根据名称特征判断（fallback）
+            if 't2v' in model_name_lower or 'i2v' in model_name_lower or model_name_lower.startswith('wan') or \
+               'wanx' in model_name_lower or 'flux' in model_name_lower or 'stable-diffusion' in model_name_lower:
+                return 'vision_generate'
+            if '-vl-' in model_name_lower or model_name_lower.endswith('-vl'):
+                return 'vision_understand'
+            if '-asr' in model_name_lower or '-tts' in model_name_lower or 'cosyvoice' in model_name_lower or \
+               'paraformer' in model_name_lower or 'sensevoice' in model_name_lower:
+                return 'voice'
+            
+            return 'text'  # 默认
+        
         # 按类别分组模型
         grouped_models = {}
         for model in request.selectedModels:
             model_code = model.get('model_code') or model.get('id')
             model_name = model.get('model_code') or model.get('model_name') or model.get('name', '')
             
-            # 确定类别
-            cat_key = category_name_to_key.get(model.get('sub_category')) or category_name_to_key.get(model.get('category'))
-            if not cat_key:
-                model_name_lower = model_name.lower()
-                if 'stable-diffusion' in model_name_lower or 'flux' in model_name_lower or 'wanx' in model_name_lower:
-                    cat_key = 'vision_generate'
-                elif 'cosyvoice' in model_name_lower or 'paraformer' in model_name_lower or 'sensevoice' in model_name_lower:
-                    cat_key = 'voice'
-                elif 'embedding' in model_name_lower:
-                    cat_key = 'text'
-                else:
-                    cat_key = 'text'
+            cat_key = get_category_key(model, model_name)
             
             if cat_key not in grouped_models:
                 grouped_models[cat_key] = []
@@ -503,7 +540,7 @@ async def export_quote_preview(
             })
         
         # 表头
-        headers = ['序号', '模型名称', '模式', 'Token范围', '输入单价', '输出单价', '折扣', '日估计用量', '备注']
+        headers = ['序号', '模型名称', '模式', 'Token范围', '输入单价', '输出单价', '折扣', '日估计用量', '预估月用量', '预估月费', '备注']
         start_row = 5
         
         for col, header in enumerate(headers, 1):
@@ -527,7 +564,7 @@ async def export_quote_preview(
             # 添加类别标题行
             category_name = category_config[cat_key]['name']
             category_icon = category_config[cat_key]['icon']
-            ws.merge_cells(f'A{current_row}:I{current_row}')
+            ws.merge_cells(f'A{current_row}:K{current_row}')
             category_cell = ws.cell(row=current_row, column=1, value=f'{category_icon} {category_name} (共{len(grouped_models[cat_key])}项)')
             category_cell.font = Font(name='微软雅黑', size=12, bold=True, color='4472C4')
             category_cell.fill = PatternFill(start_color='E7E6E6', end_color='E7E6E6', fill_type='solid')
@@ -557,7 +594,7 @@ async def export_quote_preview(
                     # 没有规格配置时显示模型名称
                     ws.cell(row=current_row, column=1, value=row_num).border = thin_border
                     ws.cell(row=current_row, column=2, value=model_name).border = thin_border
-                    for col in range(3, 10):  # 更新为10列（1-9列）
+                    for col in range(3, 12):  # 更新为12列（1-11列）
                         ws.cell(row=current_row, column=col, value='-').border = thin_border
                     current_row += 1
                     row_num += 1
@@ -588,15 +625,28 @@ async def export_quote_preview(
                         # 价格提取：兼容新版(prices数组)和旧版(直接字段)
                         input_price = None
                         output_price = None
-                                    
-                        # 新版：从cprices数组提取
+                        non_token_price = None
+                        non_token_unit = None
+                                                
+                        # 单位映射
+                        unit_map = {
+                            'character': '字符',
+                            'audio_second': '秒',
+                            'video_second': '秒',
+                            'image_count': '张',
+                        }
+                                                            
+                        # 新版：从c prices数组提取
                         if 'prices' in spec and isinstance(spec['prices'], list):
                             for price_item in spec['prices']:
                                 dim_code = price_item.get('dimension_code', '')
-                                if dim_code in ['input', 'input_token']:
+                                if dim_code in ['input', 'input_token', 'input_token_image']:
                                     input_price = price_item.get('unit_price')
                                 elif dim_code in ['output', 'output_token', 'output_token_thinking']:
                                     output_price = price_item.get('unit_price')
+                                elif dim_code in ['character', 'audio_second', 'video_second', 'image_count']:
+                                    non_token_price = price_item.get('unit_price')
+                                    non_token_unit = unit_map.get(dim_code, '次')
                         else:
                             # 旧版：直接从字段获取
                             input_price = spec.get('input_price')
@@ -605,23 +655,70 @@ async def export_quote_preview(
                         # 根据单位偏好转换价格
                         display_input = round(input_price * price_multiplier, 4) if input_price else None
                         display_output = round(output_price * price_multiplier, 4) if output_price else None
-                                    
-                        ws.cell(row=current_row, column=5, value=f"¥{display_input}/{unit_label}" if display_input else '-').border = thin_border
+                        
+                        # 输入单价列：优先显示input_price，否则显示非Token价格
+                        if display_input:
+                            ws.cell(row=current_row, column=5, value=f"¥{display_input}/{unit_label}").border = thin_border
+                        elif non_token_price:
+                            ws.cell(row=current_row, column=5, value=f"¥{non_token_price}/{non_token_unit}").border = thin_border
+                        else:
+                            ws.cell(row=current_row, column=5, value='-').border = thin_border
+                        
+                        # 输出单价列
                         ws.cell(row=current_row, column=6, value=f"¥{display_output}/{unit_label}" if display_output else '-').border = thin_border
                         ws.cell(row=current_row, column=7, value=discount_label).border = thin_border
                                     
                         # 获取日估计用量：根据model_code和spec_id查找
                         daily_usage = '-'
+                        daily_usage_num = 0
                         if str(model_code) in request.dailyUsages:
                             spec_daily_usage = request.dailyUsages[str(model_code)]
                             if isinstance(spec_daily_usage, dict) and str(spec_id) in spec_daily_usage:
                                 daily_usage = spec_daily_usage[str(spec_id)]
+                                try:
+                                    daily_usage_num = float(daily_usage) if daily_usage and daily_usage != '-' else 0
+                                except (ValueError, TypeError):
+                                    daily_usage_num = 0
                             elif isinstance(spec_daily_usage, str):
                                 # 如果是字符串，表示整个模型的用量
                                 daily_usage = spec_daily_usage
-                        ws.cell(row=current_row, column=8, value=daily_usage).border = thin_border
-                                    
-                        ws.cell(row=current_row, column=9, value=spec.get('remark', '')).border = thin_border
+                                try:
+                                    daily_usage_num = float(daily_usage) if daily_usage and daily_usage != '-' else 0
+                                except (ValueError, TypeError):
+                                    daily_usage_num = 0
+                        
+                        # 获取单位名称
+                        price_unit_text = unit_label
+                        if non_token_price and non_token_unit:
+                            price_unit_text = non_token_unit
+                        
+                        # 日用量显示：包含单位
+                        if daily_usage != '-' and daily_usage:
+                            ws.cell(row=current_row, column=8, value=f"{daily_usage} {price_unit_text}").border = thin_border
+                        else:
+                            ws.cell(row=current_row, column=8, value=daily_usage).border = thin_border
+                        
+                        # 计算预估月用量和月费用
+                        monthly_usage = '-'
+                        monthly_cost = '-'
+                        if daily_usage_num > 0:
+                            monthly_usage = f"{daily_usage_num * 30:.0f} {price_unit_text}"
+                            
+                            # 计算月费用
+                            discount_rate = (100 - spec_discount) / 100
+                            if non_token_price:
+                                # 非Token计费
+                                cost = daily_usage_num * non_token_price * 30 * discount_rate
+                                monthly_cost = f"¥{cost:.2f}"
+                            elif input_price or output_price:
+                                # Token计费：使用输入+输出价格总和
+                                total_unit_price = (input_price or 0) + (output_price or 0)
+                                cost = daily_usage_num * total_unit_price * 30 * discount_rate
+                                monthly_cost = f"¥{cost:.2f}"
+                        
+                        ws.cell(row=current_row, column=9, value=monthly_usage).border = thin_border
+                        ws.cell(row=current_row, column=10, value=monthly_cost).border = thin_border
+                        ws.cell(row=current_row, column=11, value=spec.get('remark', '')).border = thin_border
                         
                         current_row += 1
                         row_num += 1
@@ -630,7 +727,7 @@ async def export_quote_preview(
             current_row += 1
         
         # 设置列宽
-        column_widths = [8, 30, 15, 20, 18, 18, 12, 15, 20]
+        column_widths = [8, 30, 15, 20, 18, 18, 12, 18, 18, 15, 20]
         for col, width in enumerate(column_widths, 1):
             ws.column_dimensions[get_column_letter(col)].width = width
         

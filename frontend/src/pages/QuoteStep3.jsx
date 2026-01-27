@@ -62,6 +62,12 @@ function QuoteStep3() {
     '语音': 'voice',
     '视觉理解': 'vision_understand',
     '视觉生成': 'vision_generate',
+    // 中文category映射（来自API）
+    'AI-大模型-文本生成': 'text',
+    'AI-大模型-视觉理解': 'vision_understand',
+    'AI-大模型-视觉生成': 'vision_generate',
+    'AI-大模型-语音': 'voice',
+    'AI-大模型-向量': 'text',  // 向量模型归入文本类
     // 新版分类映射 - 文本类
     'text_qwen': 'text',
     'text_qwen_opensource': 'text',
@@ -156,18 +162,147 @@ function QuoteStep3() {
   };
 
   /**
+   * 获取规格的计费单位名称
+   * @param {object} spec - 规格对象
+   * @param {string} catKey - 类别 key
+   * @returns {string} 单位名称
+   */
+  const getSpecPriceUnit = (spec, catKey) => {
+    if (!spec) return '次';
+    // 如果有非Token价格，使用其单位
+    if (spec.price_unit) return spec.price_unit;
+    // 视觉生成类默认用"张"
+    if (catKey === 'vision_generate') return '张';
+    // Token计费模型根据价格单位偏好
+    return getUnitLabel(priceUnit);
+  };
+
+  /**
+   * 计算预估月费用
+   * @param {object} spec - 规格对象
+   * @param {string} modelId - 模型ID
+   * @param {string} catKey - 类别 key
+   * @returns {number|null} 预估月费用
+   */
+  const calculateMonthlyEstimate = (spec, modelId, catKey) => {
+    if (!spec) return null;
+    const dailyUsage = parseFloat(getDailyUsage(modelId, spec.id)) || 0;
+    if (dailyUsage <= 0) return null;
+    
+    const discount = getSpecDiscount(modelId, spec.id);
+    const discountRate = (100 - discount) / 100;
+    
+    let unitPrice = 0;
+    if (catKey === 'vision_generate') {
+      // 视觉生成类：使用单价
+      unitPrice = spec.non_token_price || spec.input_price || spec.output_price || 0;
+    } else if (spec.non_token_price) {
+      // 非Token计费
+      unitPrice = spec.non_token_price;
+    } else {
+      // Token计费：输入+输出的平均价或取输入价
+      const inputPrice = spec.input_price || 0;
+      const outputPrice = spec.output_price || 0;
+      unitPrice = inputPrice + outputPrice; // 简化为输入+输出总和
+    }
+    
+    // 月费用 = 日用量 × 单价 × 30天 × 折扣
+    return (dailyUsage * unitPrice * 30 * discountRate).toFixed(2);
+  };
+
+  /**
    * 从新版prices数组中提取价格
    */
   const extractPrice = (prices, type) => {
     if (!prices || !Array.isArray(prices)) return null;
     const priceItem = prices.find(p => {
       if (type === 'input') {
-        return p.dimension_code === 'input' || p.dimension_code === 'input_token';
+        return p.dimension_code === 'input' || p.dimension_code === 'input_token' || p.dimension_code === 'input_token_image';
       } else {
         return p.dimension_code === 'output' || p.dimension_code === 'output_token' || p.dimension_code === 'output_token_thinking';
       }
     });
     return priceItem?.unit_price ?? null;
+  };
+
+  /**
+   * 提取非Token类型的价格（字符、秒、张等）
+   */
+  const extractNonTokenPrice = (prices) => {
+    if (!prices || !Array.isArray(prices)) return null;
+    // 查找非token类型的价格
+    const nonTokenTypes = ['character', 'audio_second', 'video_second', 'image_count'];
+    const priceItem = prices.find(p => nonTokenTypes.includes(p.dimension_code));
+    if (priceItem) {
+      return {
+        price: priceItem.unit_price,
+        dimension_code: priceItem.dimension_code,
+        unit: getUnitName(priceItem.dimension_code)
+      };
+    }
+    return null;
+  };
+
+  /**
+   * 获取计费维度的中文单位名称
+   */
+  const getUnitName = (dimensionCode) => {
+    const unitMap = {
+      'character': '字符',
+      'audio_second': '秒',
+      'video_second': '秒',
+      'image_count': '张',
+      'input_token': '千Token',
+      'output_token': '千Token'
+    };
+    return unitMap[dimensionCode] || '次';
+  };
+
+  /**
+   * 根据模型数据获取分类 key
+   * 优先级：modality > category > 名称特征
+   */
+  const getCategoryKey = (model) => {
+    const modelName = (model.model_code || model.model_id || model.name || '').toLowerCase();
+    
+    // 1. 优先使用 modality 字段
+    if (model.modality) {
+      switch (model.modality) {
+        case 'audio': return 'voice';
+        case 'image': 
+          // 图像类需要区分理解和生成
+          if (modelName.includes('-vl') || modelName.includes('understand')) {
+            return 'vision_understand';
+          }
+          return 'vision_generate';
+        case 'video': return 'vision_generate';
+        case 'text': return 'text';
+        case 'text_embedding': return 'text';
+      }
+    }
+    
+    // 2. 其次使用 category 字段
+    const category = model.category || '';
+    if (category.includes('语音')) return 'voice';
+    if (category.includes('视觉理解')) return 'vision_understand';
+    if (category.includes('视觉生成')) return 'vision_generate';
+    if (category.includes('向量')) return 'text';
+    if (category.includes('文本')) return 'text';
+    
+    // 3. 最后根据名称特征判断（fallback）
+    if (modelName.includes('t2v') || modelName.includes('i2v') || modelName.startsWith('wan') || 
+        modelName.includes('wanx') || modelName.includes('flux') || modelName.includes('stable-diffusion')) {
+      return 'vision_generate';
+    }
+    if (modelName.includes('-vl-') || modelName.endsWith('-vl')) {
+      return 'vision_understand';
+    }
+    if (modelName.includes('-asr') || modelName.includes('-tts') || modelName.includes('cosyvoice') || 
+        modelName.includes('paraformer') || modelName.includes('sensevoice')) {
+      return 'voice';
+    }
+    
+    return 'text'; // 默认
   };
 
   /**
@@ -182,22 +317,8 @@ function QuoteStep3() {
       // 兼容新旧版数据结构
       const modelKey = model.model_code || model.id;
       
-      // 根据模型类别确定分类，优先使用sub_category，其次category
-      let catKey = categoryNameToKey[model.sub_category] || categoryNameToKey[model.category];
-      
-      // 如果还是找不到，根据模型名称特征判断
-      if (!catKey) {
-        const modelName = (model.model_code || model.name || '').toLowerCase();
-        if (modelName.includes('stable-diffusion') || modelName.includes('flux') || modelName.includes('wanx')) {
-          catKey = 'vision_generate';
-        } else if (modelName.includes('cosyvoice') || modelName.includes('paraformer') || modelName.includes('sensevoice')) {
-          catKey = 'voice';
-        } else if (modelName.includes('embedding')) {
-          catKey = 'text';
-        } else {
-          catKey = 'text'; // 默认归类为文本
-        }
-      }
+      // 使用统一的分类函数
+      const catKey = getCategoryKey(model);
       
       if (!result[catKey]) {
         result[catKey] = {
@@ -214,6 +335,9 @@ function QuoteStep3() {
       if (specs.length > 0) {
         // 每个规格单独一行
         specs.forEach((spec, specIndex) => {
+          // 提取非Token类型的价格
+          const nonTokenPrice = extractNonTokenPrice(spec.prices);
+          
           // 转换新版数据结构为Step3期望的格式
           const normalizedSpec = {
             id: spec.id,
@@ -222,7 +346,13 @@ function QuoteStep3() {
             token_range: spec.token_tier || spec.token_range,
             input_price: extractPrice(spec.prices, 'input'),
             output_price: extractPrice(spec.prices, 'output'),
-            remark: spec.remark
+            // 非Token类型价格（字符、秒、张等）
+            non_token_price: nonTokenPrice?.price,
+            price_unit: nonTokenPrice?.unit,
+            dimension_code: nonTokenPrice?.dimension_code,
+            remark: spec.remark,
+            // 保留原始prices数据便于导出
+            prices: spec.prices
           };
           
           result[catKey].items.push({
@@ -339,7 +469,8 @@ function QuoteStep3() {
                 <th className="px-3 py-3 text-right text-xs font-medium text-text-primary w-28">折后输出</th>
               </>
             )}
-            <th className="px-3 py-3 text-center text-xs font-medium text-text-primary w-32">日估计用量</th>
+            <th className="px-3 py-3 text-center text-xs font-medium text-text-primary w-36">日估计用量</th>
+            <th className="px-3 py-3 text-right text-xs font-medium text-text-primary w-28">预估月费</th>
           </tr>
         </thead>
         <tbody>
@@ -347,6 +478,7 @@ function QuoteStep3() {
             const { model, spec, isFirstSpec, totalSpecs, specIndex } = item;
             const rowIndex = currentIndex + idx + 1;
             const hasSpec = spec !== null;
+            const monthlyEstimate = calculateMonthlyEstimate(spec, model.id, 'text');
             
             return (
               <tr 
@@ -381,22 +513,27 @@ function QuoteStep3() {
                 </td>
                 <td className="px-3 py-3 text-sm text-right">
                   {hasSpec && spec.input_price !== null && spec.input_price !== undefined ? (
-                    <span className="text-primary font-medium">¥{getDisplayPrice(spec.input_price, priceUnit)}</span>
+                    <>
+                      <span className="text-primary font-medium">¥{getDisplayPrice(spec.input_price, priceUnit)}</span>
+                      <span className="text-xs text-text-secondary ml-1">/{getUnitLabel(priceUnit)}</span>
+                    </>
+                  ) : hasSpec && spec.non_token_price !== null && spec.non_token_price !== undefined ? (
+                    <>
+                      <span className="text-primary font-medium">¥{spec.non_token_price}</span>
+                      <span className="text-xs text-text-secondary ml-1">/{spec.price_unit}</span>
+                    </>
                   ) : (
                     <span className="text-text-secondary">-</span>
-                  )}
-                  {hasSpec && spec.input_price !== null && (
-                    <span className="text-xs text-text-secondary ml-1">/{getUnitLabel(priceUnit)}</span>
                   )}
                 </td>
                 <td className="px-3 py-3 text-sm text-right">
                   {hasSpec && spec.output_price !== null && spec.output_price !== undefined ? (
-                    <span className="text-green-600 font-medium">¥{getDisplayPrice(spec.output_price, priceUnit)}</span>
+                    <>
+                      <span className="text-green-600 font-medium">¥{getDisplayPrice(spec.output_price, priceUnit)}</span>
+                      <span className="text-xs text-text-secondary ml-1">/{getUnitLabel(priceUnit)}</span>
+                    </>
                   ) : (
                     <span className="text-text-secondary">-</span>
-                  )}
-                  {hasSpec && spec.output_price !== null && (
-                    <span className="text-xs text-text-secondary ml-1">/{getUnitLabel(priceUnit)}</span>
                   )}
                 </td>
                 {hasAnyDiscount && (
@@ -435,15 +572,25 @@ function QuoteStep3() {
                 )}
                 <td className="px-3 py-3 text-sm">
                   {hasSpec && (
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={getDailyUsage(model.id, spec.id)}
-                      onChange={(e) => updateDailyUsage(model.id, spec.id, e.target.value)}
-                      className="w-24 px-2 py-1 border border-border rounded text-xs text-center focus:border-primary focus:outline-none"
-                      placeholder="日用量"
-                    />
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={getDailyUsage(model.id, spec.id)}
+                        onChange={(e) => updateDailyUsage(model.id, spec.id, e.target.value)}
+                        className="w-20 px-2 py-1 border border-border rounded text-xs text-center focus:border-primary focus:outline-none"
+                        placeholder="日用量"
+                      />
+                      <span className="text-xs text-text-secondary whitespace-nowrap">{getSpecPriceUnit(spec, 'text')}</span>
+                    </div>
+                  )}
+                </td>
+                <td className="px-3 py-3 text-sm text-right">
+                  {monthlyEstimate ? (
+                    <span className="text-orange-600 font-medium">¥{monthlyEstimate}</span>
+                  ) : (
+                    <span className="text-text-secondary">-</span>
                   )}
                 </td>
               </tr>
@@ -478,7 +625,8 @@ function QuoteStep3() {
                 <th className="px-3 py-3 text-right text-xs font-medium text-text-primary w-28">折后单价</th>
               </>
             )}
-            <th className="px-3 py-3 text-center text-xs font-medium text-text-primary w-32">日估计用量</th>
+            <th className="px-3 py-3 text-center text-xs font-medium text-text-primary w-36">日估计用量</th>
+            <th className="px-3 py-3 text-right text-xs font-medium text-text-primary w-28">预估月费</th>
           </tr>
         </thead>
         <tbody>
@@ -486,8 +634,10 @@ function QuoteStep3() {
             const { model, spec, isFirstSpec, totalSpecs, specIndex } = item;
             const rowIndex = currentIndex + idx + 1;
             const hasSpec = spec !== null;
-            // 视觉生成使用 input_price 作为单价
-            const unitPrice = hasSpec ? (spec.input_price || spec.output_price) : null;
+            // 视觉生成使用 input_price 或 non_token_price 作为单价
+            const unitPrice = hasSpec ? (spec.non_token_price || spec.input_price || spec.output_price) : null;
+            const priceUnitText = hasSpec ? (spec.price_unit || '张') : '张';
+            const monthlyEstimate = calculateMonthlyEstimate(spec, model.id, 'vision_generate');
             
             return (
               <tr 
@@ -517,7 +667,7 @@ function QuoteStep3() {
                   )}
                 </td>
                 <td className="px-3 py-3 text-sm text-center text-text-secondary">
-                  /张
+                  /{priceUnitText}
                 </td>
                 {hasAnyDiscount && (
                   <>
@@ -550,15 +700,25 @@ function QuoteStep3() {
                 )}
                 <td className="px-3 py-3 text-sm">
                   {hasSpec && (
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={getDailyUsage(model.id, spec.id)}
-                      onChange={(e) => updateDailyUsage(model.id, spec.id, e.target.value)}
-                      className="w-24 px-2 py-1 border border-border rounded text-xs text-center focus:border-primary focus:outline-none"
-                      placeholder="日用量"
-                    />
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={getDailyUsage(model.id, spec.id)}
+                        onChange={(e) => updateDailyUsage(model.id, spec.id, e.target.value)}
+                        className="w-20 px-2 py-1 border border-border rounded text-xs text-center focus:border-primary focus:outline-none"
+                        placeholder="日用量"
+                      />
+                      <span className="text-xs text-text-secondary whitespace-nowrap">{priceUnitText}</span>
+                    </div>
+                  )}
+                </td>
+                <td className="px-3 py-3 text-sm text-right">
+                  {monthlyEstimate ? (
+                    <span className="text-orange-600 font-medium">¥{monthlyEstimate}</span>
+                  ) : (
+                    <span className="text-text-secondary">-</span>
                   )}
                 </td>
               </tr>
