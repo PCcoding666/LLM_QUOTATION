@@ -145,14 +145,25 @@ function Home() {
           </h2>
           
           {/* 主入口按钮 */}
-          <div className="flex justify-center">
+          <div className="flex justify-center gap-4">
             <button
               onClick={() => navigate('/quote/step1')}
               className="home-button home-button-primary"
             >
               <span className="button-glow" />
               <span className="relative z-10 flex items-center gap-2">
-                <span>🚀</span> 开始报价
+                <span>📝</span> 标准报价
+              </span>
+            </button>
+            
+            {/* 极速报价入口 */}
+            <button
+              onClick={() => navigate('/express-quote')}
+              className="home-button home-button-express"
+            >
+              <span className="button-glow" />
+              <span className="relative z-10 flex items-center gap-2">
+                <span>⚡</span> 极速报价
               </span>
             </button>
           </div>

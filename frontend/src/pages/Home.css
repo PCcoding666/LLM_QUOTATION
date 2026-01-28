@@ -219,6 +219,22 @@
   box-shadow: 0 10px 30px -10px rgba(255, 255, 255, 0.2);
 }
 
+/* 极速报价按钮样式 */
+.home-button-express {
+  background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%);
+  background-size: 200% 200%;
+  animation: fade-in-up 0.8s ease-out 0.5s both, gradient-shift 4s ease infinite;
+  box-shadow: 
+    0 10px 30px -10px rgba(16, 185, 129, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+}
+
+.home-button-express:hover {
+  box-shadow: 
+    0 20px 40px -15px rgba(16, 185, 129, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+}
+
 /* 按钮光晕效果 */
 .button-glow {
   position: absolute;

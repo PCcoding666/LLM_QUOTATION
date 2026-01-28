@@ -1,0 +1,480 @@
+/* 极速报价页面样式 - CSS Modules */
+
+.container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  display: flex;
+  flex-direction: column;
+}
+
+/* 头部导航 */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.backButton,
+.restartButton {
+  padding: 8px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.backButton:hover,
+.restartButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+}
+
+/* 进度条 */
+.progressBar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.03);
+  gap: 8px;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.5);
+  transition: all 0.3s;
+}
+
+.step.stepActive {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+}
+
+.stepIcon {
+  font-size: 16px;
+}
+
+.stepLabel {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.stepLine {
+  width: 30px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* 主内容区 */
+.mainContent {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* 对话区 */
+.chatArea {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  overflow: hidden;
+}
+
+.messageList {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 10px;
+}
+
+.messageList::-webkit-scrollbar {
+  width: 6px;
+}
+
+.messageList::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+/* 消息样式 */
+.message {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.userMessage {
+  flex-direction: row-reverse;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.messageContent {
+  max-width: 70%;
+  padding: 12px 16px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.assistantMessage .messageContent {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-bottom-left-radius: 4px;
+}
+
+.userMessage .messageContent {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+/* 打字指示器 */
+.typingIndicator {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+}
+
+.typingIndicator span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.typingIndicator span:nth-child(1) { animation-delay: -0.32s; }
+.typingIndicator span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+/* 预览容器 */
+.previewContainer {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 16px;
+  margin: 16px 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.previewHeader {
+  margin-bottom: 12px;
+}
+
+.previewHeader h3 {
+  color: #fff;
+  margin: 0 0 8px 0;
+  font-size: 16px;
+}
+
+.customerInfo {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+}
+
+.tableWrapper {
+  overflow-x: auto;
+}
+
+.previewTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.previewTable th,
+.previewTable td {
+  padding: 10px 12px;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.previewTable th {
+  background: rgba(102, 126, 234, 0.3);
+  font-weight: 600;
+}
+
+.previewTable tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* 分类模块样式 */
+.categorySection {
+  margin-bottom: 20px;
+}
+
+.categorySection:last-child {
+  margin-bottom: 0;
+}
+
+.categoryHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(102, 126, 234, 0.15);
+  border-radius: 8px 8px 0 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.categoryIcon {
+  font-size: 16px;
+}
+
+.categoryName {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.categoryCount {
+  margin-left: auto;
+  padding: 2px 8px;
+  background: rgba(102, 126, 234, 0.3);
+  border-radius: 10px;
+  color: #a5b4fc;
+  font-size: 12px;
+}
+
+/* 快捷选项 */
+.suggestedOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 0;
+}
+
+.optionButton {
+  padding: 8px 16px;
+  border: 1px solid rgba(102, 126, 234, 0.5);
+  border-radius: 20px;
+  background: rgba(102, 126, 234, 0.1);
+  color: #a5b4fc;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.optionButton:hover:not(:disabled) {
+  background: rgba(102, 126, 234, 0.3);
+  border-color: #667eea;
+}
+
+.optionButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 导出区域 */
+.exportArea {
+  padding: 16px 0;
+}
+
+.exportButton {
+  width: 100%;
+  padding: 14px 24px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.exportButton:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+}
+
+.exportButton:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 输入区 */
+.inputArea {
+  display: flex;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.input {
+  flex: 1;
+  padding: 14px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.input:focus {
+  border-color: #667eea;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.sendButton {
+  padding: 14px 24px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sendButton:hover:not(:disabled) {
+  transform: scale(1.02);
+}
+
+.sendButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 侧边栏 */
+.sidebar {
+  width: 280px;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.sidebarTitle {
+  color: #fff;
+  font-size: 16px;
+  margin: 0 0 20px 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.summarySection {
+  margin-bottom: 20px;
+}
+
+.summarySection h4 {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  margin: 0 0 10px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.modelList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.modelList li {
+  padding: 8px 12px;
+  margin-bottom: 6px;
+  background: rgba(102, 126, 234, 0.1);
+  border-radius: 8px;
+  color: #a5b4fc;
+  font-size: 13px;
+}
+
+.customerDetail {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+}
+
+.customerDetail p {
+  margin: 4px 0;
+}
+
+.emptyHint {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.currentStepText {
+  color: #a5b4fc;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
+  }
+  
+  .progressBar {
+    overflow-x: auto;
+    justify-content: flex-start;
+    padding: 16px;
+  }
+  
+  .step {
+    flex-shrink: 0;
+  }
+  
+  .stepLabel {
+    display: none;
+  }
+  
+  .messageContent {
+    max-width: 85%;
+  }
+}

@@ -10,6 +10,7 @@ import QuoteStep3 from './pages/QuoteStep3';
 import QuoteHistory from './pages/QuoteHistory';
 import DebatePage from './pages/DebatePage';
 import PricingManagement from './pages/PricingManagement';
+import ExpressQuote from './pages/ExpressQuote';
 import ChatWindow from './components/ChatWindow';
 import { QuoteProvider } from './context/QuoteContext';
 
@@ -21,8 +22,9 @@ function App() {
   const location = useLocation();
   const [isChatOpen, setIsChatOpen] = useState(false);
   
-  // 首页采用全局布局
+  // 首页和极速报价页面采用全局布局（无导航栏）
   const isHomePage = location.pathname === '/';
+  const isExpressQuote = location.pathname === '/express-quote';
 
   // 监听打开 AI 助手的事件（来自首页按钮）
   useEffect(() => {
@@ -35,7 +37,7 @@ function App() {
     <QuoteProvider>
     <div className="min-h-screen bg-white">
       {/* 首页无导航栏，内页显示简洁头部 */}
-      {!isHomePage && (
+      {!isHomePage && !isExpressQuote && (
         <header className="bg-white border-b border-border">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center">
             <Link 
@@ -56,6 +58,12 @@ function App() {
         <main>
           <Routes>
             <Route path="/" element={<Home />} />
+          </Routes>
+        </main>
+      ) : isExpressQuote ? (
+        <main>
+          <Routes>
+            <Route path="/express-quote" element={<ExpressQuote />} />
           </Routes>
         </main>
       ) : (

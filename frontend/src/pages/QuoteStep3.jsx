@@ -55,47 +55,32 @@ function QuoteStep3() {
   const [competitorModalOpen, setCompetitorModalOpen] = useState(false);
 
   /**
-   * 类目名称到 key 的映射（兼容旧版）
+   * 类目配置 - 与 step1 保持一致的 12 个细分分类
    */
-  const categoryNameToKey = {
-    '文本': 'text',
-    '语音': 'voice',
-    '视觉理解': 'vision_understand',
-    '视觉生成': 'vision_generate',
-    // 中文category映射（来自API）
-    'AI-大模型-文本生成': 'text',
-    'AI-大模型-视觉理解': 'vision_understand',
-    'AI-大模型-视觉生成': 'vision_generate',
-    'AI-大模型-语音': 'voice',
-    'AI-大模型-向量': 'text',  // 向量模型归入文本类
-    // 新版分类映射 - 文本类
-    'text_qwen': 'text',
-    'text_qwen_opensource': 'text',
-    'text_thirdparty': 'text',
-    'text_embedding': 'text',
-    'multimodal_embedding': 'text',
-    'text_nlu': 'text',
-    'industry': 'text',
-    // 图像生成类
-    'image_gen': 'vision_generate',
-    'image_gen_thirdparty': 'vision_generate',
-    'video_gen': 'vision_generate',
-    // 语音类
-    'tts': 'voice',
-    'asr': 'voice',
-    'speech': 'voice',
-    'voice_clone': 'voice'
+  const categoryConfig = {
+    text_qwen: { name: '文本生成-通义千问', icon: '💬', priceType: 'token' },
+    text_qwen_opensource: { name: '文本生成-通义千问-开源版', icon: '📝', priceType: 'token' },
+    text_thirdparty: { name: '文本生成-第三方模型', icon: '🤖', priceType: 'token' },
+    image_gen: { name: '图像生成', icon: '🎨', priceType: 'image' },
+    image_gen_thirdparty: { name: '图像生成-第三方模型', icon: '🖼️', priceType: 'image' },
+    tts: { name: '语音合成', icon: '🔊', priceType: 'character' },
+    asr: { name: '语音识别与翻译', icon: '🎤', priceType: 'audio' },
+    video_gen: { name: '视频生成', icon: '🎬', priceType: 'video' },
+    text_embedding: { name: '文本向量', icon: '📊', priceType: 'token' },
+    multimodal_embedding: { name: '多模态向量', icon: '🌐', priceType: 'token' },
+    text_nlu: { name: '文本分类抽取排序', icon: '🔍', priceType: 'token' },
+    industry: { name: '行业模型', icon: '🏭', priceType: 'token' }
   };
 
   /**
-   * 类目配置
+   * 定义分类渲染顺序
    */
-  const categoryConfig = {
-    text: { name: '文本模型', icon: '📝' },
-    voice: { name: '语音模型', icon: '🎙️' },
-    vision_understand: { name: '视觉理解模型', icon: '👁️' },
-    vision_generate: { name: '视觉生成模型', icon: '🎨' }
-  };
+  const categoryOrder = [
+    'text_qwen', 'text_qwen_opensource', 'text_thirdparty',
+    'image_gen', 'image_gen_thirdparty',
+    'tts', 'asr', 'video_gen',
+    'text_embedding', 'multimodal_embedding', 'text_nlu', 'industry'
+  ];
 
   /**
    * 计算折扣后价格
@@ -260,49 +245,44 @@ function QuoteStep3() {
 
   /**
    * 根据模型数据获取分类 key
-   * 优先级：modality > category > 名称特征
+   * 直接使用 model.category 或 sub_category 字段
    */
   const getCategoryKey = (model) => {
+    // 直接使用 category 或 sub_category 字段
+    const category = model.category || model.sub_category || '';
+    
+    // 如果 category 直接匹配配置的分类 key，则使用
+    if (categoryConfig[category]) {
+      return category;
+    }
+    
+    // 名称特征兜底判断
     const modelName = (model.model_code || model.model_id || model.name || '').toLowerCase();
     
-    // 1. 优先使用 modality 字段
-    if (model.modality) {
-      switch (model.modality) {
-        case 'audio': return 'voice';
-        case 'image': 
-          // 图像类需要区分理解和生成
-          if (modelName.includes('-vl') || modelName.includes('understand')) {
-            return 'vision_understand';
-          }
-          return 'vision_generate';
-        case 'video': return 'vision_generate';
-        case 'text': return 'text';
-        case 'text_embedding': return 'text';
-      }
+    // 图像生成类
+    if (modelName.includes('wanx') || modelName.includes('flux') || modelName.includes('stable-diffusion') ||
+        modelName.includes('qwen-image') || modelName.includes('image-edit')) {
+      return 'image_gen';
+    }
+    // 视频生成类
+    if (modelName.includes('t2v') || modelName.includes('i2v') || modelName.startsWith('wan2')) {
+      return 'video_gen';
+    }
+    // 语音合成类
+    if (modelName.includes('-tts') || modelName.includes('cosyvoice')) {
+      return 'tts';
+    }
+    // 语音识别类
+    if (modelName.includes('-asr') || modelName.includes('paraformer') || modelName.includes('sensevoice')) {
+      return 'asr';
+    }
+    // 向量模型
+    if (modelName.includes('embedding')) {
+      return 'text_embedding';
     }
     
-    // 2. 其次使用 category 字段
-    const category = model.category || '';
-    if (category.includes('语音')) return 'voice';
-    if (category.includes('视觉理解')) return 'vision_understand';
-    if (category.includes('视觉生成')) return 'vision_generate';
-    if (category.includes('向量')) return 'text';
-    if (category.includes('文本')) return 'text';
-    
-    // 3. 最后根据名称特征判断（fallback）
-    if (modelName.includes('t2v') || modelName.includes('i2v') || modelName.startsWith('wan') || 
-        modelName.includes('wanx') || modelName.includes('flux') || modelName.includes('stable-diffusion')) {
-      return 'vision_generate';
-    }
-    if (modelName.includes('-vl-') || modelName.endsWith('-vl')) {
-      return 'vision_understand';
-    }
-    if (modelName.includes('-asr') || modelName.includes('-tts') || modelName.includes('cosyvoice') || 
-        modelName.includes('paraformer') || modelName.includes('sensevoice')) {
-      return 'voice';
-    }
-    
-    return 'text'; // 默认
+    // 默认归入通义千问文本类
+    return 'text_qwen';
   };
 
   /**
@@ -602,11 +582,23 @@ function QuoteStep3() {
   };
 
   /**
-   * 渲染视觉生成类模型表格（按次/按张计费）
+   * 渲染非Token类模型表格（按次/按张/按字符/按秒计费）
    * 支持同一模型多个规格的展示
    */
-  const renderImageBasedTable = (category, startIndex) => {
+  const renderImageBasedTable = (category, startIndex, priceType = 'image') => {
     let currentIndex = startIndex;
+    
+    // 根据 priceType 获取默认单位
+    const getDefaultUnit = (pType) => {
+      switch (pType) {
+        case 'image': return '张';
+        case 'character': return '字符';
+        case 'audio': return '秒';
+        case 'video': return '秒';
+        default: return '次';
+      }
+    };
+    const defaultUnit = getDefaultUnit(priceType);
     
     // 判断是否有任何折扣（整单或单个规格）
     const hasAnyDiscount = discountPercent > 0 || Object.keys(specDiscounts).length > 0;
@@ -634,10 +626,10 @@ function QuoteStep3() {
             const { model, spec, isFirstSpec, totalSpecs, specIndex } = item;
             const rowIndex = currentIndex + idx + 1;
             const hasSpec = spec !== null;
-            // 视觉生成使用 input_price 或 non_token_price 作为单价
+            // 使用 non_token_price 或 input_price 作为单价
             const unitPrice = hasSpec ? (spec.non_token_price || spec.input_price || spec.output_price) : null;
-            const priceUnitText = hasSpec ? (spec.price_unit || '张') : '张';
-            const monthlyEstimate = calculateMonthlyEstimate(spec, model.id, 'vision_generate');
+            const priceUnitText = hasSpec ? (spec.price_unit || defaultUnit) : defaultUnit;
+            const monthlyEstimate = calculateMonthlyEstimate(spec, model.id, priceType);
             
             return (
               <tr 
@@ -736,7 +728,8 @@ function QuoteStep3() {
     const category = groupedConfigs[catKey];
     if (!category || category.items.length === 0) return { element: null, count: 0 };
     
-    const isImageCategory = catKey === 'vision_generate';
+    const priceType = categoryConfig[catKey]?.priceType || 'token';
+    const isNonTokenCategory = ['image', 'character', 'audio', 'video'].includes(priceType);
     
     return {
       element: (
@@ -752,8 +745,8 @@ function QuoteStep3() {
           
           {/* 表格 */}
           <div className="overflow-x-auto rounded-lg border border-border">
-            {isImageCategory 
-              ? renderImageBasedTable(category, startIndex)
+            {isNonTokenCategory 
+              ? renderImageBasedTable(category, startIndex, priceType)
               : renderTokenBasedTable(category, startIndex)
             }
           </div>
@@ -1115,8 +1108,8 @@ function QuoteStep3() {
                   let currentIndex = 0;
                   const sections = [];
                   
-                  // 按固定顺序渲染各类目
-                  ['text', 'voice', 'vision_understand', 'vision_generate'].forEach(catKey => {
+                  // 按固定顺序渲染各类目（使用新的 12 分类）
+                  categoryOrder.forEach(catKey => {
                     const result = renderCategorySection(catKey, currentIndex);
                     if (result.element) {
                       sections.push(result.element);

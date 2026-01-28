@@ -3,7 +3,7 @@ V1版本API路由聚合
 """
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import products, quotes, ai_chat, export, crawler, doubao, competitors, pricing_admin
+from app.api.v1.endpoints import products, quotes, ai_chat, export, crawler, doubao, competitors, pricing_admin, express_quote
 
 api_router = APIRouter()
 
@@ -16,3 +16,4 @@ api_router.include_router(crawler.router, prefix="/crawler", tags=["爬虫管理
 api_router.include_router(doubao.router, prefix="/doubao", tags=["豆包定价"])
 api_router.include_router(competitors.router, prefix="/competitors", tags=["竞品分析"])
 api_router.include_router(pricing_admin.router, prefix="/pricing-admin", tags=["定价管理"])
+api_router.include_router(express_quote.router, prefix="/express-quote", tags=["极速报价"])

@@ -448,79 +448,61 @@ async def export_quote_preview(
         ws['G3'] = '有效期：'
         ws['H3'] = valid_until
         
-        # 类目配置
+        # 类目配置 - 与前端 step1/step3 保持一致的 12 个细分分类
         category_config = {
-            'text': {'name': '文本模型', 'icon': '📝'},
-            'voice': {'name': '语音模型', 'icon': '🎙️'},
-            'vision_understand': {'name': '视觉理解模型', 'icon': '👁️'},
-            'vision_generate': {'name': '视觉生成模型', 'icon': '🎨'}
+            'text_qwen': {'name': '文本生成-通义千问', 'icon': '💬', 'price_type': 'token'},
+            'text_qwen_opensource': {'name': '文本生成-通义千问-开源版', 'icon': '📝', 'price_type': 'token'},
+            'text_thirdparty': {'name': '文本生成-第三方模型', 'icon': '🤖', 'price_type': 'token'},
+            'image_gen': {'name': '图像生成', 'icon': '🎨', 'price_type': 'image'},
+            'image_gen_thirdparty': {'name': '图像生成-第三方模型', 'icon': '🖼️', 'price_type': 'image'},
+            'tts': {'name': '语音合成', 'icon': '🔊', 'price_type': 'character'},
+            'asr': {'name': '语音识别与翻译', 'icon': '🎤', 'price_type': 'audio'},
+            'video_gen': {'name': '视频生成', 'icon': '🎬', 'price_type': 'video'},
+            'text_embedding': {'name': '文本向量', 'icon': '📊', 'price_type': 'token'},
+            'multimodal_embedding': {'name': '多模态向量', 'icon': '🌐', 'price_type': 'token'},
+            'text_nlu': {'name': '文本分类抽取排序', 'icon': '🔍', 'price_type': 'token'},
+            'industry': {'name': '行业模型', 'icon': '🏭', 'price_type': 'token'}
         }
         
-        # 类别映射
-        category_name_to_key = {
-            # 中文category映射（来自API）
-            'AI-大模型-文本生成': 'text',
-            'AI-大模型-视觉理解': 'vision_understand',
-            'AI-大模型-视觉生成': 'vision_generate',
-            'AI-大模型-语音': 'voice',
-            'AI-大模型-向量': 'text',
-            # 英文分类映射
-            'text_qwen': 'text',
-            'text_qwen_opensource': 'text',
-            'text_thirdparty': 'text',
-            'text_embedding': 'text',
-            'multimodal_embedding': 'text',
-            'text_nlu': 'text',
-            'industry': 'text',
-            'image_gen': 'vision_generate',
-            'image_gen_thirdparty': 'vision_generate',
-            'video_gen': 'vision_generate',
-            'tts': 'voice',
-            'asr': 'voice',
-            'speech': 'voice',
-            'voice_clone': 'voice'
-        }
+        # 分类渲染顺序
+        category_order = [
+            'text_qwen', 'text_qwen_opensource', 'text_thirdparty',
+            'image_gen', 'image_gen_thirdparty',
+            'tts', 'asr', 'video_gen',
+            'text_embedding', 'multimodal_embedding', 'text_nlu', 'industry'
+        ]
         
         def get_category_key(model, model_name):
-            """根据模型数据获取分类 key，优先级：modality > category > 名称特征"""
+            """根据模型数据获取分类 key，直接使用 category 字段"""
+            # 直接使用 category 或 sub_category 字段
+            category = model.get('category') or model.get('sub_category') or ''
+            
+            # 如果 category 直接匹配配置的分类 key，则使用
+            if category in category_config:
+                return category
+            
+            # 名称特征兜底判断
             model_name_lower = model_name.lower()
             
-            # 1. 优先使用 modality 字段
-            modality = model.get('modality')
-            if modality:
-                if modality == 'audio':
-                    return 'voice'
-                elif modality == 'image':
-                    if '-vl' in model_name_lower or 'understand' in model_name_lower:
-                        return 'vision_understand'
-                    return 'vision_generate'
-                elif modality == 'video':
-                    return 'vision_generate'
-                elif modality in ['text', 'text_embedding']:
-                    return 'text'
+            # 图像生成类
+            if 'wanx' in model_name_lower or 'flux' in model_name_lower or 'stable-diffusion' in model_name_lower or \
+               'qwen-image' in model_name_lower or 'image-edit' in model_name_lower:
+                return 'image_gen'
+            # 视频生成类
+            if 't2v' in model_name_lower or 'i2v' in model_name_lower or model_name_lower.startswith('wan2'):
+                return 'video_gen'
+            # 语音合成类
+            if '-tts' in model_name_lower or 'cosyvoice' in model_name_lower:
+                return 'tts'
+            # 语音识别类
+            if '-asr' in model_name_lower or 'paraformer' in model_name_lower or 'sensevoice' in model_name_lower:
+                return 'asr'
+            # 向量模型
+            if 'embedding' in model_name_lower:
+                return 'text_embedding'
             
-            # 2. 其次使用 category 字段
-            category = model.get('category', '')
-            if '语音' in category:
-                return 'voice'
-            if '视觉理解' in category:
-                return 'vision_understand'
-            if '视觉生成' in category:
-                return 'vision_generate'
-            if '向量' in category or '文本' in category:
-                return 'text'
-            
-            # 3. 最后根据名称特征判断（fallback）
-            if 't2v' in model_name_lower or 'i2v' in model_name_lower or model_name_lower.startswith('wan') or \
-               'wanx' in model_name_lower or 'flux' in model_name_lower or 'stable-diffusion' in model_name_lower:
-                return 'vision_generate'
-            if '-vl-' in model_name_lower or model_name_lower.endswith('-vl'):
-                return 'vision_understand'
-            if '-asr' in model_name_lower or '-tts' in model_name_lower or 'cosyvoice' in model_name_lower or \
-               'paraformer' in model_name_lower or 'sensevoice' in model_name_lower:
-                return 'voice'
-            
-            return 'text'  # 默认
+            # 默认归入通义千问文本类
+            return 'text_qwen'
         
         # 按类别分组模型
         grouped_models = {}
@@ -556,8 +538,8 @@ async def export_quote_preview(
         current_row = start_row + 1
         row_num = 1
         
-        # 按固定顺序遍历各类别
-        for cat_key in ['text', 'voice', 'vision_understand', 'vision_generate']:
+        # 按固定顺序遍历各类别（使用新的 12 分类）
+        for cat_key in category_order:
             if cat_key not in grouped_models:
                 continue
             

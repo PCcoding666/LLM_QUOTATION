@@ -277,3 +277,52 @@ export const getPricingCategoriesAdmin = () =>
  */
 export const getPricingFiltersAdmin = () =>
   client.get('/pricing-admin/filters');
+
+// =====================================================
+// 极速报价 API
+// =====================================================
+
+/**
+ * 发送极速报价对话消息
+ * @param {string} message - 用户消息
+ * @param {string} sessionId - 会话ID（可选）
+ * @returns {Promise} AI响应
+ */
+export const sendExpressQuoteMessage = (message, sessionId = null) =>
+  client.post('/express-quote/chat', {
+    message,
+    session_id: sessionId
+  });
+
+/**
+ * 导出极速报价单
+ * @param {string} sessionId - 会话ID
+ * @returns {Promise} 导出结果
+ */
+export const exportExpressQuote = (sessionId) =>
+  client.post('/express-quote/export', {
+    session_id: sessionId
+  });
+
+/**
+ * 获取极速报价欢迎消息
+ * @returns {Promise} 欢迎消息和快捷选项
+ */
+export const getExpressQuoteWelcome = () =>
+  client.get('/express-quote/welcome');
+
+/**
+ * 获取极速报价会话数据
+ * @param {string} sessionId - 会话ID
+ * @returns {Promise} 会话数据
+ */
+export const getExpressQuoteSession = (sessionId) =>
+  client.get(`/express-quote/session/${sessionId}`);
+
+/**
+ * 清除极速报价会话
+ * @param {string} sessionId - 会话ID
+ * @returns {Promise} 清除结果
+ */
+export const clearExpressQuoteSession = (sessionId) =>
+  client.delete(`/express-quote/session/${sessionId}`);
