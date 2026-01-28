@@ -176,3 +176,104 @@ export const batchGetCompetitors = (modelCodes) =>
  */
 export const getCompetitorStatus = () =>
   client.get('/competitors/status');
+
+// =====================================================
+// 定价管理 API（用于模型规格与价格的 CRUD 操作）
+// =====================================================
+
+/**
+ * 获取管理端模型列表
+ * @param {Object} params - 筛选参数
+ * @returns {Promise} 分页模型列表
+ */
+export const getPricingModelsAdmin = (params = {}) =>
+  client.get('/pricing-admin/models', { params });
+
+/**
+ * 获取管理端模型详情
+ * @param {number} modelId - 模型ID
+ * @returns {Promise} 模型详情
+ */
+export const getPricingModelAdminDetail = (modelId) =>
+  client.get(`/pricing-admin/models/${modelId}`);
+
+/**
+ * 创建模型
+ * @param {Object} data - 模型数据
+ * @returns {Promise} 创建结果
+ */
+export const createPricingModel = (data) =>
+  client.post('/pricing-admin/models', data);
+
+/**
+ * 更新模型
+ * @param {number} modelId - 模型ID
+ * @param {Object} data - 更新数据
+ * @returns {Promise} 更新结果
+ */
+export const updatePricingModel = (modelId, data) =>
+  client.put(`/pricing-admin/models/${modelId}`, data);
+
+/**
+ * 删除模型（软删除）
+ * @param {number} modelId - 模型ID
+ * @returns {Promise} 删除结果
+ */
+export const deletePricingModel = (modelId) =>
+  client.delete(`/pricing-admin/models/${modelId}`);
+
+/**
+ * 批量删除模型（软删除）
+ * @param {number[]} modelIds - 模型ID列表
+ * @returns {Promise} 删除结果
+ */
+export const batchDeletePricingModels = (modelIds) =>
+  client.post('/pricing-admin/models/batch-delete', { model_ids: modelIds });
+
+/**
+ * 获取模型价格列表
+ * @param {number} modelId - 模型ID
+ * @returns {Promise} 价格列表
+ */
+export const getModelPricesAdmin = (modelId) =>
+  client.get(`/pricing-admin/models/${modelId}/prices`);
+
+/**
+ * 添加模型价格维度
+ * @param {number} modelId - 模型ID
+ * @param {Object} data - 价格数据
+ * @returns {Promise} 添加结果
+ */
+export const addModelPrice = (modelId, data) =>
+  client.post(`/pricing-admin/models/${modelId}/prices`, data);
+
+/**
+ * 更新价格
+ * @param {number} priceId - 价格ID
+ * @param {Object} data - 更新数据
+ * @returns {Promise} 更新结果
+ */
+export const updateModelPrice = (priceId, data) =>
+  client.put(`/pricing-admin/prices/${priceId}`, data);
+
+/**
+ * 删除价格
+ * @param {number} priceId - 价格ID
+ * @returns {Promise} 删除结果
+ */
+export const deleteModelPrice = (priceId) =>
+  client.delete(`/pricing-admin/prices/${priceId}`);
+
+/**
+ * 获取管理端分类列表
+ * @returns {Promise} 分类列表
+ */
+export const getPricingCategoriesAdmin = () =>
+  client.get('/pricing-admin/categories');
+
+/**
+ * 获取管理端筛选选项
+ * @returns {Promise} 筛选选项
+ */
+export const getPricingFiltersAdmin = () =>
+  client.get('/pricing-admin/filters');
