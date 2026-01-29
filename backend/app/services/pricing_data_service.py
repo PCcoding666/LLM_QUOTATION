@@ -389,7 +389,9 @@ class PricingDataService:
                         {
                             "model_code": m.model_code,
                             "model_name": m.model_name,
-                            "display_name": m.display_name
+                            "display_name": m.display_name,
+                            "category": cat.code,  # 添加分类信息，与Step1保持一致
+                            "sub_category": cat.code  # 添加子分类信息
                         }
                         for m in models
                     ]

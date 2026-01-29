@@ -186,47 +186,63 @@ export default function ExpressQuote() {
     ));
   };
   
-  // 模型分类配置
+  // 模型分类配置 - 与 QuoteStep3 和后端保持一致的 12 个分类
   const categoryConfig = {
     text_qwen: { name: '文本生成-通义千问', icon: '💬', priceType: 'token' },
+    text_qwen_opensource: { name: '文本生成-通义千问-开源版', icon: '📝', priceType: 'token' },
     text_thirdparty: { name: '文本生成-第三方模型', icon: '🤖', priceType: 'token' },
     image_gen: { name: '图像生成', icon: '🎨', priceType: 'image' },
+    image_gen_thirdparty: { name: '图像生成-第三方模型', icon: '🖼️', priceType: 'image' },
     tts: { name: '语音合成', icon: '🔊', priceType: 'character' },
-    asr: { name: '语音识别', icon: '🎤', priceType: 'audio' },
+    asr: { name: '语音识别与翻译', icon: '🎤', priceType: 'audio' },
     video_gen: { name: '视频生成', icon: '🎬', priceType: 'video' },
-    text_embedding: { name: '文本向量', icon: '📊', priceType: 'token' }
+    text_embedding: { name: '文本向量', icon: '📊', priceType: 'token' },
+    multimodal_embedding: { name: '多模态向量', icon: '🌐', priceType: 'token' },
+    text_nlu: { name: '文本分类抽取排序', icon: '🔍', priceType: 'token' },
+    industry: { name: '行业模型', icon: '🏭', priceType: 'token' }
   };
 
-  // 根据模型名称判断分类
-  const getCategoryKey = (modelName) => {
-    const name = (modelName || '').toLowerCase();
+  // 根据模型数据获取分类 key - 优先使用后端返回的 category 字段
+  const getCategoryKey = (row) => {
+    // 优先使用后端返回的 category 或 sub_category 字段
+    const category = row.category || row.sub_category || '';
+    
+    // 如果 category 直接匹配配置的分类 key，则直接返回
+    if (category && categoryConfig[category]) {
+      return category;
+    }
+    
+    // 如果没有有效的 category 字段，使用模型名称作为兜底逻辑
+    const modelName = (row.model || '').toLowerCase();
     
     // 图像生成类
-    if (name.includes('wanx') || name.includes('flux') || name.includes('stable-diffusion') ||
-        name.includes('qwen-image') || name.includes('image')) {
+    if (modelName.includes('wanx') || modelName.includes('flux') || modelName.includes('stable-diffusion') ||
+        modelName.includes('qwen-image') || modelName.includes('image')) {
       return 'image_gen';
     }
     // 视频生成类
-    if (name.includes('t2v') || name.includes('i2v') || name.startsWith('wan2')) {
+    if (modelName.includes('t2v') || modelName.includes('i2v') || modelName.startsWith('wan2')) {
       return 'video_gen';
     }
     // 语音合成类
-    if (name.includes('-tts') || name.includes('cosyvoice')) {
+    if (modelName.includes('-tts') || modelName.includes('cosyvoice')) {
       return 'tts';
     }
     // 语音识别类
-    if (name.includes('-asr') || name.includes('paraformer') || name.includes('sensevoice')) {
+    if (modelName.includes('-asr') || modelName.includes('paraformer') || modelName.includes('sensevoice')) {
       return 'asr';
     }
     // 向量模型
-    if (name.includes('embedding')) {
+    if (modelName.includes('embedding')) {
       return 'text_embedding';
     }
     // 第三方文本模型
-    if (name.includes('deepseek') || name.includes('llama') || name.includes('baichuan')) {
+    if (modelName.includes('deepseek') || modelName.includes('llama') || modelName.includes('baichuan')) {
       return 'text_thirdparty';
     }
+    
     // 默认归入通义千问文本类
+    console.warn('Model missing valid category, using default:', row);
     return 'text_qwen';
   };
 
@@ -234,7 +250,7 @@ export default function ExpressQuote() {
   const groupRowsByCategory = (rows) => {
     const grouped = {};
     rows.forEach(row => {
-      const catKey = getCategoryKey(row.model);
+      const catKey = getCategoryKey(row);
       if (!grouped[catKey]) {
         grouped[catKey] = {
           ...categoryConfig[catKey],
@@ -344,29 +360,39 @@ export default function ExpressQuote() {
           )}
         </div>
         
-        {/* 按分类渲染表格 */}
-        {categoryOrder.map(catKey => {
-          const category = groupedData[catKey];
-          if (!category || category.items.length === 0) return null;
+        {/* 按分类渲染表格 - 使用固定的 12 分类顺序 */}
+        {(() => {
+          // 定义分类渲染顺序（与 QuoteStep3 保持一致）
+          const categoryOrder = [
+            'text_qwen', 'text_qwen_opensource', 'text_thirdparty',
+            'image_gen', 'image_gen_thirdparty',
+            'tts', 'asr', 'video_gen',
+            'text_embedding', 'multimodal_embedding', 'text_nlu', 'industry'
+          ];
           
-          const isTokenBased = category.priceType === 'token';
-          
-          return (
-            <div key={catKey} className={styles.categorySection}>
-              <div className={styles.categoryHeader}>
-                <span className={styles.categoryIcon}>{category.icon}</span>
-                <span className={styles.categoryName}>{category.name}</span>
-                <span className={styles.categoryCount}>{category.items.length} 项</span>
+          return categoryOrder.map(catKey => {
+            const category = groupedData[catKey];
+            if (!category || category.items.length === 0) return null;
+            
+            const isTokenBased = category.priceType === 'token';
+            
+            return (
+              <div key={catKey} className={styles.categorySection}>
+                <div className={styles.categoryHeader}>
+                  <span className={styles.categoryIcon}>{category.icon}</span>
+                  <span className={styles.categoryName}>{category.name}</span>
+                  <span className={styles.categoryCount}>{category.items.length} 项</span>
+                </div>
+                <div className={styles.tableWrapper}>
+                  {isTokenBased 
+                    ? renderTokenTable(category.items, hasDiscount)
+                    : renderNonTokenTable(category.items, hasDiscount, category.priceType)
+                  }
+                </div>
               </div>
-              <div className={styles.tableWrapper}>
-                {isTokenBased 
-                  ? renderTokenTable(category.items, hasDiscount)
-                  : renderNonTokenTable(category.items, hasDiscount, category.priceType)
-                }
-              </div>
-            </div>
-          );
-        })}
+            );
+          });
+        })()}
       </div>
     );
   };

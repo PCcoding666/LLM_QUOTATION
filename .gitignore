@@ -68,3 +68,4 @@ restart.sh
 # AI 工具相关配置（本地使用）
 .agent/
 openspec/
+.kiro/

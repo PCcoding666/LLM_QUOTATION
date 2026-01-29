@@ -147,8 +147,14 @@ TOOLS = [
                 "properties": {
                     "category": {
                         "type": "string",
-                        "enum": ["text", "voice", "vision", "video"],
-                        "description": "模型分类：text文本、voice语音、vision视觉理解、video视频生成"
+                        "enum": [
+                            "text_qwen", "text_qwen_opensource", "text_thirdparty",
+                            "image_gen", "image_gen_thirdparty",
+                            "tts", "asr", "video_gen",
+                            "text_embedding", "multimodal_embedding", "text_nlu", "industry",
+                            "text", "voice", "vision", "video"
+                        ],
+                        "description": "模型分类：12个细分类(text_qwen/text_qwen_opensource/text_thirdparty/image_gen/image_gen_thirdparty/tts/asr/video_gen/text_embedding/multimodal_embedding/text_nlu/industry)或4个大类(text/voice/vision/video)"
                     }
                 },
                 "required": ["category"]
@@ -501,7 +507,22 @@ class ExpressQuoteOrchestrator:
             
             elif func_name == "get_category_models":
                 category = args.get("category", "text")
+                # 12细分类 + 4大类的映射（搜索关键词）
                 category_map = {
+                    # 12个细分类 - 直接使用分类代码搜索
+                    "text_qwen": "qwen",
+                    "text_qwen_opensource": "qwen opensource",
+                    "text_thirdparty": "deepseek llama baichuan",
+                    "image_gen": "wanx flux image",
+                    "image_gen_thirdparty": "stable-diffusion",
+                    "tts": "tts cosyvoice",
+                    "asr": "asr paraformer sensevoice",
+                    "video_gen": "t2v i2v wan2",
+                    "text_embedding": "embedding",
+                    "multimodal_embedding": "multimodal embedding",
+                    "text_nlu": "nlu classification",
+                    "industry": "industry",
+                    # 4个大类 - 向下兼容
                     "text": "text_",
                     "voice": "audio",
                     "vision": "vision",
@@ -603,7 +624,10 @@ class ExpressQuoteOrchestrator:
                     "input_discounted": input_discounted,
                     "output_discounted": output_discounted,
                     "price_unit": price_unit,
-                    "is_token_based": input_price is not None or output_price is not None
+                    "is_token_based": input_price is not None or output_price is not None,
+                    # 添加分类信息，优先使用variant的category，否则使用sub_category
+                    "category": v.get("category") or v.get("sub_category"),
+                    "sub_category": v.get("sub_category")
                 })
                 idx += 1
         

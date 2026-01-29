@@ -391,56 +391,72 @@ async def export_quote_preview(
     导出报价预览Excel
     
     接收前端传来的报价数据，生成Excel文件并返回下载链接
+    使用category-specific rendering logic for proper table structure
     """
     import os
     import uuid
     from datetime import datetime
     from openpyxl import Workbook
-    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from openpyxl.styles import Font, Alignment, PatternFill
     from openpyxl.utils import get_column_letter
+    from app.services.excel_exporter import (
+        group_models_by_category,
+        render_category_section,
+        CATEGORY_CONFIG
+    )
     
     try:
-        # 创建Excel工作簿
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "报价清单"
-        
-        # 调试日志
-        logger.info(f"导出请求数据 - selectedModels: {request.selectedModels}")
-        logger.info(f"导出请求数据 - modelConfigs: {request.modelConfigs}")
-        
-        # 样式定义
-        title_font = Font(name='微软雅黑', size=16, bold=True)
-        header_font = Font(name='微软雅黑', size=11, bold=True, color='FFFFFF')
-        cell_font = Font(name='微软雅黑', size=10)
-        header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
-        thin_border = Border(
-            left=Side(style='thin'),
-            right=Side(style='thin'),
-            top=Side(style='thin'),
-            bottom=Side(style='thin')
-        )
-        
-        # 获取客户信息
+        # Step 1: Extract request data
         customer_info = request.customerInfo
+        selected_models = request.selectedModels
+        model_configs = request.modelConfigs
+        spec_discounts = request.specDiscounts or {}
+        daily_usages = request.dailyUsages or {}
+        price_unit = request.priceUnit or 'thousand'
+        
+        # Extract customer info fields
         customer_name = customer_info.get('customerName', '')
         quote_date = customer_info.get('quoteDate', '')
         valid_until = customer_info.get('validUntil', '')
         discount_percent = customer_info.get('discountPercent', 0)
         
-        # 获取价格单位偏好
-        price_unit = request.priceUnit or 'thousand'
-        unit_label = '百万Token' if price_unit == 'million' else '千Token'
-        price_multiplier = 1000 if price_unit == 'million' else 1
+        # Debug logging
+        logger.info(f"导出请求数据 - selectedModels: {len(selected_models)} models")
+        logger.info(f"导出请求数据 - modelConfigs keys: {list(model_configs.keys())}")
+        logger.info(f"导出请求数据 - priceUnit: {price_unit}")
         
-        # 写入标题
+        # DEBUG: Log sample model and config data
+        if selected_models:
+            import json
+            logger.info(f"=== EXPORT DEBUG START ===")
+            logger.info(f"DEBUG - First selected_model: {json.dumps(selected_models[0], ensure_ascii=False, default=str)}")
+            first_key = list(model_configs.keys())[0] if model_configs else None
+            if first_key:
+                config_sample = model_configs[first_key]
+                logger.info(f"DEBUG - First model_config (key={first_key}): {json.dumps(config_sample, ensure_ascii=False, default=str)}")
+            logger.info(f"=== EXPORT DEBUG END ===")
+        
+        # Step 2: Group models by category
+        grouped_models = group_models_by_category(selected_models, model_configs)
+        logger.info(f"Grouped models into {len(grouped_models)} categories: {list(grouped_models.keys())}")
+        
+        # Step 3: Create Excel workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "报价清单"
+        
+        # Step 4: Render title and customer info
+        # Title styling
+        title_font = Font(name='微软雅黑', size=16, bold=True)
+        
+        # Write title
         ws.merge_cells('A1:H1')
         ws['A1'] = '阿里云大模型产品报价清单'
         ws['A1'].font = title_font
         ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
         ws.row_dimensions[1].height = 30
         
-        # 写入客户信息
+        # Write customer info
         ws['A3'] = '客户名称：'
         ws['B3'] = customer_name
         ws['D3'] = '报价日期：'
@@ -448,289 +464,65 @@ async def export_quote_preview(
         ws['G3'] = '有效期：'
         ws['H3'] = valid_until
         
-        # 类目配置 - 与前端 step1/step3 保持一致的 12 个细分分类
-        category_config = {
-            'text_qwen': {'name': '文本生成-通义千问', 'icon': '💬', 'price_type': 'token'},
-            'text_qwen_opensource': {'name': '文本生成-通义千问-开源版', 'icon': '📝', 'price_type': 'token'},
-            'text_thirdparty': {'name': '文本生成-第三方模型', 'icon': '🤖', 'price_type': 'token'},
-            'image_gen': {'name': '图像生成', 'icon': '🎨', 'price_type': 'image'},
-            'image_gen_thirdparty': {'name': '图像生成-第三方模型', 'icon': '🖼️', 'price_type': 'image'},
-            'tts': {'name': '语音合成', 'icon': '🔊', 'price_type': 'character'},
-            'asr': {'name': '语音识别与翻译', 'icon': '🎤', 'price_type': 'audio'},
-            'video_gen': {'name': '视频生成', 'icon': '🎬', 'price_type': 'video'},
-            'text_embedding': {'name': '文本向量', 'icon': '📊', 'price_type': 'token'},
-            'multimodal_embedding': {'name': '多模态向量', 'icon': '🌐', 'price_type': 'token'},
-            'text_nlu': {'name': '文本分类抽取排序', 'icon': '🔍', 'price_type': 'token'},
-            'industry': {'name': '行业模型', 'icon': '🏭', 'price_type': 'token'}
-        }
+        # Step 5: Initialize current_row
+        current_row = 5
         
-        # 分类渲染顺序
-        category_order = [
-            'text_qwen', 'text_qwen_opensource', 'text_thirdparty',
-            'image_gen', 'image_gen_thirdparty',
-            'tts', 'asr', 'video_gen',
-            'text_embedding', 'multimodal_embedding', 'text_nlu', 'industry'
-        ]
+        # Step 6: For each category in CATEGORY_CONFIG order, render category section
+        # Define category order (same as CATEGORY_CONFIG order field)
+        category_order = sorted(
+            CATEGORY_CONFIG.keys(),
+            key=lambda k: CATEGORY_CONFIG[k]['order']
+        )
         
-        def get_category_key(model, model_name):
-            """根据模型数据获取分类 key，直接使用 category 字段"""
-            # 直接使用 category 或 sub_category 字段
-            category = model.get('category') or model.get('sub_category') or ''
-            
-            # 如果 category 直接匹配配置的分类 key，则使用
-            if category in category_config:
-                return category
-            
-            # 名称特征兜底判断
-            model_name_lower = model_name.lower()
-            
-            # 图像生成类
-            if 'wanx' in model_name_lower or 'flux' in model_name_lower or 'stable-diffusion' in model_name_lower or \
-               'qwen-image' in model_name_lower or 'image-edit' in model_name_lower:
-                return 'image_gen'
-            # 视频生成类
-            if 't2v' in model_name_lower or 'i2v' in model_name_lower or model_name_lower.startswith('wan2'):
-                return 'video_gen'
-            # 语音合成类
-            if '-tts' in model_name_lower or 'cosyvoice' in model_name_lower:
-                return 'tts'
-            # 语音识别类
-            if '-asr' in model_name_lower or 'paraformer' in model_name_lower or 'sensevoice' in model_name_lower:
-                return 'asr'
-            # 向量模型
-            if 'embedding' in model_name_lower:
-                return 'text_embedding'
-            
-            # 默认归入通义千问文本类
-            return 'text_qwen'
-        
-        # 按类别分组模型
-        grouped_models = {}
-        for model in request.selectedModels:
-            model_code = model.get('model_code') or model.get('id')
-            model_name = model.get('model_code') or model.get('model_name') or model.get('name', '')
-            
-            cat_key = get_category_key(model, model_name)
-            
-            if cat_key not in grouped_models:
-                grouped_models[cat_key] = []
-            
-            grouped_models[cat_key].append({
-                'model': model,
-                'model_code': model_code,
-                'model_name': model_name
-            })
-        
-        # 表头
-        headers = ['序号', '模型名称', '模式', 'Token范围', '输入单价', '输出单价', '折扣', '日估计用量', '预估月用量', '预估月费', '备注']
-        start_row = 5
-        
-        for col, header in enumerate(headers, 1):
-            cell = ws.cell(row=start_row, column=col, value=header)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.alignment = Alignment(horizontal='center', vertical='center')
-            cell.border = thin_border
-        
-        ws.row_dimensions[start_row].height = 25
-        
-        # 写入数据 - 按类别分组
-        current_row = start_row + 1
-        row_num = 1
-        
-        # 按固定顺序遍历各类别（使用新的 12 分类）
-        for cat_key in category_order:
-            if cat_key not in grouped_models:
+        for category_key in category_order:
+            # Check if category has models in grouped_models
+            if category_key not in grouped_models:
                 continue
             
-            # 添加类别标题行
-            category_name = category_config[cat_key]['name']
-            category_icon = category_config[cat_key]['icon']
-            ws.merge_cells(f'A{current_row}:K{current_row}')
-            category_cell = ws.cell(row=current_row, column=1, value=f'{category_icon} {category_name} (共{len(grouped_models[cat_key])}项)')
-            category_cell.font = Font(name='微软雅黑', size=12, bold=True, color='4472C4')
-            category_cell.fill = PatternFill(start_color='E7E6E6', end_color='E7E6E6', fill_type='solid')
-            category_cell.alignment = Alignment(horizontal='left', vertical='center')
-            ws.row_dimensions[current_row].height = 25
-            current_row += 1
+            category_data = grouped_models[category_key]
+            models = category_data.get('models', [])
             
-            # 写入该类别的模型
-            for model_data in grouped_models[cat_key]:
-                model = model_data['model']
-                model_code = model_data['model_code']
-                model_name = model_data['model_name']
-                
-                # 尝试多种key获取配置
-                model_config = (
-                    request.modelConfigs.get(str(model_code), {}) or
-                    request.modelConfigs.get(model_code, {}) or
-                    request.modelConfigs.get(str(model.get('id')), {})
-                )
-                
-                # 兼容variants(新版)和specs(旧版)
-                specs = model_config.get('variants', []) or model_config.get('specs', [])
-                
-                logger.info(f"导出模型: {model_name}, model_code={model_code}, specs数量={len(specs)}")
-                
-                if not specs:
-                    # 没有规格配置时显示模型名称
-                    ws.cell(row=current_row, column=1, value=row_num).border = thin_border
-                    ws.cell(row=current_row, column=2, value=model_name).border = thin_border
-                    for col in range(3, 12):  # 更新为12列（1-11列）
-                        ws.cell(row=current_row, column=col, value='-').border = thin_border
-                    current_row += 1
-                    row_num += 1
-                else:
-                    # 有规格配置
-                    for spec in specs:
-                        spec_id = spec.get('id')
-                        # 获取该规格的折扣
-                        spec_discount = request.specDiscounts.get(str(model_code), {}).get(str(spec_id), discount_percent)
-                        if spec_discount == 0:
-                            spec_discount = request.specDiscounts.get(str(model.get('id')), {}).get(str(spec_id), discount_percent)
-                        discount_label = f"{(10 - spec_discount / 10):.1f}折" if spec_discount > 0 else "无折扣"
-                        
-                        ws.cell(row=current_row, column=1, value=row_num).border = thin_border
-                                    
-                        # 获取模型名称：优先使用spec中的model_name
-                        display_name = spec.get('model_name') or model_name
-                        ws.cell(row=current_row, column=2, value=display_name).border = thin_border
-                                    
-                        # 模式
-                        mode = spec.get('mode', '-') or '-'
-                        ws.cell(row=current_row, column=3, value=mode).border = thin_border
-                                    
-                        # Token范围：兼容token_tier(新版)和token_range(旧版)
-                        token_range = spec.get('token_tier') or spec.get('token_range') or '-'
-                        ws.cell(row=current_row, column=4, value=token_range).border = thin_border
-                                    
-                        # 价格提取：兼容新版(prices数组)和旧版(直接字段)
-                        input_price = None
-                        output_price = None
-                        non_token_price = None
-                        non_token_unit = None
-                                                
-                        # 单位映射
-                        unit_map = {
-                            'character': '字符',
-                            'audio_second': '秒',
-                            'video_second': '秒',
-                            'image_count': '张',
-                        }
-                                                            
-                        # 新版：从c prices数组提取
-                        if 'prices' in spec and isinstance(spec['prices'], list):
-                            for price_item in spec['prices']:
-                                dim_code = price_item.get('dimension_code', '')
-                                if dim_code in ['input', 'input_token', 'input_token_image']:
-                                    input_price = price_item.get('unit_price')
-                                elif dim_code in ['output', 'output_token', 'output_token_thinking']:
-                                    output_price = price_item.get('unit_price')
-                                elif dim_code in ['character', 'audio_second', 'video_second', 'image_count']:
-                                    non_token_price = price_item.get('unit_price')
-                                    non_token_unit = unit_map.get(dim_code, '次')
-                        else:
-                            # 旧版：直接从字段获取
-                            input_price = spec.get('input_price')
-                            output_price = spec.get('output_price')
-                        
-                        # 根据单位偏好转换价格
-                        display_input = round(input_price * price_multiplier, 4) if input_price else None
-                        display_output = round(output_price * price_multiplier, 4) if output_price else None
-                        
-                        # 输入单价列：优先显示input_price，否则显示非Token价格
-                        if display_input:
-                            ws.cell(row=current_row, column=5, value=f"¥{display_input}/{unit_label}").border = thin_border
-                        elif non_token_price:
-                            ws.cell(row=current_row, column=5, value=f"¥{non_token_price}/{non_token_unit}").border = thin_border
-                        else:
-                            ws.cell(row=current_row, column=5, value='-').border = thin_border
-                        
-                        # 输出单价列
-                        ws.cell(row=current_row, column=6, value=f"¥{display_output}/{unit_label}" if display_output else '-').border = thin_border
-                        ws.cell(row=current_row, column=7, value=discount_label).border = thin_border
-                                    
-                        # 获取日估计用量：根据model_code和spec_id查找
-                        daily_usage = '-'
-                        daily_usage_num = 0
-                        if str(model_code) in request.dailyUsages:
-                            spec_daily_usage = request.dailyUsages[str(model_code)]
-                            if isinstance(spec_daily_usage, dict) and str(spec_id) in spec_daily_usage:
-                                daily_usage = spec_daily_usage[str(spec_id)]
-                                try:
-                                    daily_usage_num = float(daily_usage) if daily_usage and daily_usage != '-' else 0
-                                except (ValueError, TypeError):
-                                    daily_usage_num = 0
-                            elif isinstance(spec_daily_usage, str):
-                                # 如果是字符串，表示整个模型的用量
-                                daily_usage = spec_daily_usage
-                                try:
-                                    daily_usage_num = float(daily_usage) if daily_usage and daily_usage != '-' else 0
-                                except (ValueError, TypeError):
-                                    daily_usage_num = 0
-                        
-                        # 获取单位名称
-                        price_unit_text = unit_label
-                        if non_token_price and non_token_unit:
-                            price_unit_text = non_token_unit
-                        
-                        # 日用量显示：包含单位
-                        if daily_usage != '-' and daily_usage:
-                            ws.cell(row=current_row, column=8, value=f"{daily_usage} {price_unit_text}").border = thin_border
-                        else:
-                            ws.cell(row=current_row, column=8, value=daily_usage).border = thin_border
-                        
-                        # 计算预估月用量和月费用
-                        monthly_usage = '-'
-                        monthly_cost = '-'
-                        if daily_usage_num > 0:
-                            monthly_usage = f"{daily_usage_num * 30:.0f} {price_unit_text}"
-                            
-                            # 计算月费用
-                            discount_rate = (100 - spec_discount) / 100
-                            if non_token_price:
-                                # 非Token计费
-                                cost = daily_usage_num * non_token_price * 30 * discount_rate
-                                monthly_cost = f"¥{cost:.2f}"
-                            elif input_price or output_price:
-                                # Token计费：使用输入+输出价格总和
-                                total_unit_price = (input_price or 0) + (output_price or 0)
-                                cost = daily_usage_num * total_unit_price * 30 * discount_rate
-                                monthly_cost = f"¥{cost:.2f}"
-                        
-                        ws.cell(row=current_row, column=9, value=monthly_usage).border = thin_border
-                        ws.cell(row=current_row, column=10, value=monthly_cost).border = thin_border
-                        ws.cell(row=current_row, column=11, value=spec.get('remark', '')).border = thin_border
-                        
-                        current_row += 1
-                        row_num += 1
+            if not models:
+                continue
             
-            # 类别之间留一行空白
-            current_row += 1
+            # Call render_category_section()
+            logger.info(f"Rendering category: {category_key} with {len(models)} models")
+            current_row = render_category_section(
+                ws,
+                category_key,
+                models,
+                current_row,
+                price_unit,
+                spec_discounts,
+                daily_usages,
+                discount_percent
+            )
         
-        # 设置列宽
-        column_widths = [8, 30, 15, 20, 18, 18, 12, 18, 18, 15, 20]
-        for col, width in enumerate(column_widths, 1):
-            ws.column_dimensions[get_column_letter(col)].width = width
+        # Step 7: Render quote notes
+        current_row += 1  # Add extra spacing before notes
         
-        # 添加报价说明
-        current_row += 2
-        ws.cell(row=current_row, column=1, value='报价说明：').font = Font(bold=True)
+        ws.cell(row=current_row, column=1, value='报价说明：').font = Font(name='微软雅黑', bold=True)
         current_row += 1
+        
         ws.cell(row=current_row, column=1, value='• 以上价格均为人民币（CNY）计价')
         current_row += 1
+        
         ws.cell(row=current_row, column=1, value='• Token计费模型按实际调用量结算')
         current_row += 1
-        if discount_percent > 0:
-            ws.cell(row=current_row, column=1, value=f'• 本报价单默认折扣: {(10 - discount_percent / 10):.1f}折')
         
-        # 保存文件
+        if discount_percent > 0:
+            discount_display = (100 - discount_percent) / 10
+            ws.cell(row=current_row, column=1, value=f'• 本报价单默认折扣: {discount_display:.1f}折')
+        
+        # Step 8: Save file and return response
         exports_dir = "exports"
         os.makedirs(exports_dir, exist_ok=True)
         
         filename = f"报价单_{customer_name}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:8]}.xlsx"
         filepath = os.path.join(exports_dir, filename)
         wb.save(filepath)
+        
+        logger.info(f"Excel file saved successfully: {filename}")
         
         return {
             "success": True,

@@ -245,44 +245,20 @@ function QuoteStep3() {
 
   /**
    * 根据模型数据获取分类 key
-   * 直接使用 model.category 或 sub_category 字段
+   * 直接使用 model.category 或 sub_category 字段（与 Step1 保持一致）
    */
   const getCategoryKey = (model) => {
-    // 直接使用 category 或 sub_category 字段
+    // 优先使用 Step1 保存的 category 或 sub_category 字段
     const category = model.category || model.sub_category || '';
     
-    // 如果 category 直接匹配配置的分类 key，则使用
-    if (categoryConfig[category]) {
+    // 如果 category 直接匹配配置的分类 key，则直接返回（不再使用兜底逻辑）
+    if (category && categoryConfig[category]) {
       return category;
     }
     
-    // 名称特征兜底判断
-    const modelName = (model.model_code || model.model_id || model.name || '').toLowerCase();
-    
-    // 图像生成类
-    if (modelName.includes('wanx') || modelName.includes('flux') || modelName.includes('stable-diffusion') ||
-        modelName.includes('qwen-image') || modelName.includes('image-edit')) {
-      return 'image_gen';
-    }
-    // 视频生成类
-    if (modelName.includes('t2v') || modelName.includes('i2v') || modelName.startsWith('wan2')) {
-      return 'video_gen';
-    }
-    // 语音合成类
-    if (modelName.includes('-tts') || modelName.includes('cosyvoice')) {
-      return 'tts';
-    }
-    // 语音识别类
-    if (modelName.includes('-asr') || modelName.includes('paraformer') || modelName.includes('sensevoice')) {
-      return 'asr';
-    }
-    // 向量模型
-    if (modelName.includes('embedding')) {
-      return 'text_embedding';
-    }
-    
-    // 默认归入通义千问文本类
-    return 'text_qwen';
+    // 如果没有有效的 category 字段，记录警告并返回默认值
+    console.warn('Model missing valid category:', model);
+    return 'text_qwen';  // 默认分类
   };
 
   /**
